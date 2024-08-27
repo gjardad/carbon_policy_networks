@@ -8,7 +8,7 @@
 #####################
 
 ## Setup ------
-#rm(list = ls())
+rm(list = ls())
 
 if(Sys.info()[["user"]] =="JARDANG"){
   folder <- "X:/Documents/JARDANG" 
@@ -45,5 +45,26 @@ df_compliance <- read.csv(paste0(raw_data,"/EUTL/compliance.csv"))
 ## Clean data -------
 
 df_installation <- df_installation %>% 
-  rename(installation_id = id)
+  rename(installation_id = id) %>% 
+  select(c(installation_id, country_id, activity_id, nace_id)) %>% 
+  filter(nace_id != 51.00)
 
+installation_year_emissions <- df_installation %>% 
+  left_join(df_compliance, by = "installation_id") %>% 
+  select(c(installation_id, year, country_id, activity_id, nace_id,
+           allocatedFree, allocatedTotal, verified)) %>% 
+  filter(year <= 2023) %>% 
+  mutate(allocatedFree = ifelse(is.na(allocatedFree),0, allocatedFree),
+         allocatedTotal = ifelse(is.na(allocatedTotal),0, allocatedTotal),
+         verified = ifelse(is.na(verified),0, verified))
+
+## Save it ------
+save(installation_year_emissions, file = paste0(proc_data,"/installation_year_emissions.RData"))
+
+  
+
+  
+  
+  
+  
+  
