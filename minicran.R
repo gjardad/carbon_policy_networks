@@ -35,4 +35,7 @@ install.packages(pkgs, repos = paste0("file:///", normalizePath(pth)), type = "w
 # For some reason, package stringi not properly installed
 install.packages("stringi", repos = paste0("file:///", normalizePath(pth)), type = "win.binary")
 
-
+####### Add new packages (from CRAN) to the miniCRAN repo -----
+pth <- "X:/Documents/JARDANG/miniCRAN"
+addPackage("haven", path = pth, repos = mirror, type = c("source", "win.binary"))
+pkgAvail(repos = pth, type = "win.binary")[, c(1:3, 5)]
