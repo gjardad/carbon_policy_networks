@@ -53,7 +53,7 @@ firm_year_belgian_euets <- firm_year_emissions %>%
   distinct() %>% 
   left_join(df_national_accounts %>%  select(vat_ano, year, 
                                              v_0022_27,v_0000070, v_0001033,
-                                             v_0001003, v_0001013),
+                                             v_0001003, v_0001013, nace5d),
             by = c("vat_ano", "year")) %>% 
   rename(vat = vat_ano, capital = v_0022_27, revenue = v_0000070,
          fte = v_0001003, wage_bill = v_0001033, hours = v_0001013) %>% 
