@@ -59,7 +59,8 @@ firm_year_belgian_euets <- firm_year_emissions %>%
          fte = v_0001003, wage_bill = v_0001033, hours = v_0001013) %>% 
   mutate(emissions_prod = ifelse(revenue == 0 | emissions == 0, 0, log(revenue/emissions)),
          labor_prod = ifelse(revenue == 0 | fte == 0 , 0, log(revenue/fte)),
-         capital_prod = ifelse(revenue == 0 | capital == 0, 0, log(revenue/capital)))
+         capital_prod = ifelse(revenue == 0 | capital == 0, 0, log(revenue/capital)),
+         nace5d = as.character(nace5d))
 
 # Save it -------
 save(firm_year_belgian_euets, file = paste0(proc_data,"/firm_year_belgian_euets.RData"))  
