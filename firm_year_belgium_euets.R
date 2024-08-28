@@ -57,7 +57,7 @@ firm_year_belgian_euets <- firm_year_emissions %>%
             by = c("vat_ano", "year")) %>% 
   rename(vat = vat_ano, capital = v_0022_27, revenue = v_0000070,
          fte = v_0001003, wage_bill = v_0001033, hours = v_0001013) %>% 
-  mutate(emission_prod = ifelse(revenue == 0, 0, log(revenue/emissions)),
+  mutate(emissions_prod = ifelse(revenue == 0, 0, log(revenue/emissions)),
          labor_prod = ifelse(revenue == 0, 0, log(revenue/fte)),
          capital_prod = ifelse(revenue == 0, 0, log(revenue/capital)))
 
