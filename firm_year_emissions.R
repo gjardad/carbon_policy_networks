@@ -29,16 +29,13 @@ code <- paste0(folder, "/carbon_policy_networks/code")
 library(tidyverse)
 library(dplyr) # even though dplyr is included in tidyverse, still need to load it separately
 
-## Import data ------
+# Import data ------
 
 df_installation <- load(paste0(proc_data,"/installation_year_emissions.RData"))
 
 df_account <- read.csv(paste0(raw_data,"/EUTL/account.csv"))
 
-library(haven)
-df_belgium_account <- read_dta(paste0(raw_data,"/NBB/EUTL_Belgium.dta"))
-
-## Clean data ------
+# Clean data ------
 
 df_account <- df_account %>% 
   rename(account_id = id, account_type = accountType_id, bvd_id = bvdId,
@@ -62,5 +59,5 @@ firm_year_emissions  <- installation_year_emissions %>%
   filter(firm_id != "") %>% 
   mutate(pct_combustion = ifelse(emissions == 0, 0, pct_combustion/emissions))
 
-## Save it -------
+# Save it -------
 save(firm_year_emissions, file = paste0(proc_data,"/firm_year_emissions.RData"))
