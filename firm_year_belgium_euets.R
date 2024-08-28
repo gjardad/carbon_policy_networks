@@ -41,7 +41,7 @@ library(haven)
 df_belgium_vat <- read_dta(paste0(raw_data,"/NBB/EUTL_Belgium.dta")) %>% 
   rename(bvd_id = bvdid, firm_id = companyregistrationnumber)
 
-df_firm_emissions <- load(paste0(proc_data, "/firm_year_emissions.RData"))
+load(paste0(proc_data, "/firm_year_emissions.RData"))
 
 df_national_accounts <- read_dta(paste0(raw_data,"/NBB/Annual_Accounts_MASTER_ANO.dta"))
 
