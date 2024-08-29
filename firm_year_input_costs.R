@@ -28,3 +28,13 @@ library(tidyverse)
 library(dplyr) # even though dplyr is included in tidyverse, still need to load it separately
 
 # Import data ------
+df_b2b <- read_dta(paste0(raw_data,"/NBB/B2B_ANO.dta"))
+
+# Clean data ------
+
+firm_year_input_cost <- df_b2b %>%
+  group_by(vat_j_ano, year) %>% # Group by j and year
+  summarize(input_cost = sum(corr_sales_ij, na.rm = TRUE))
+
+save(firm_year_input_cost, file = paste0(proc_data,"/firm_year_input_cost.RData"))  
+

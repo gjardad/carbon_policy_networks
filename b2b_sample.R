@@ -28,5 +28,9 @@ library(tidyverse)
 library(dplyr) # even though dplyr is included in tidyverse, still need to load it separately
 
 # Import data ------
+library(haven)
+df_b2b <- read_dta(paste0(raw_data,"/NBB/B2B_ANO.dta"))
 
-df_b2b <- 
+# Create and save sample -----
+df_b2b_sample <- df_b2b %>% sample_n(10000)
+save(df_b2b_sample, file = paste0(proc_data,"/b2b_sample.RData"))  
