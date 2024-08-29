@@ -37,5 +37,11 @@ install.packages("stringi", repos = paste0("file:///", normalizePath(pth)), type
 
 ####### Add new packages (from CRAN) to the miniCRAN repo -----
 pth <- "X:/Documents/JARDANG/miniCRAN"
-addPackage("haven", path = pth, repos = mirror, type = c("source", "win.binary"))
+addPackage("ggplot2", path = pth, repos = mirror, type = c("source", "win.binary"))
 pkgAvail(repos = pth, type = "win.binary")[, c(1:3, 5)]
+
+# Install summarytools; for some reason need to explicitly write path
+install.packages("summarytools", repos = paste0("file:///", normalizePath(pth)), type = "win.binary", dependencies = TRUE)
+
+
+
