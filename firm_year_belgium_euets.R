@@ -45,7 +45,9 @@ load(paste0(proc_data, "/firm_year_emissions.RData"))
 
 df_national_accounts <- read_dta(paste0(raw_data,"/NBB/Annual_Accounts_MASTER_ANO.dta"))
 
-# Clean Data ------
+load(paste0(proc_data, "/firm_year_input_cost.RData"))
+
+# Create df ------
 
 firm_year_belgian_euets <- firm_year_emissions %>% 
   left_join(df_belgium_vat %>% select(firm_id, vat_ano), by = "firm_id") %>% 
@@ -60,7 +62,9 @@ firm_year_belgian_euets <- firm_year_emissions %>%
   mutate(emissions_prod = ifelse(revenue == 0 | emissions == 0, 0, log(revenue/emissions)),
          labor_prod = ifelse(revenue == 0 | fte == 0 , 0, log(revenue/fte)),
          capital_prod = ifelse(revenue == 0 | capital == 0, 0, log(revenue/capital)),
-         nace5d = as.character(nace5d))
+         nace5d = as.character(nace5d)) %>% 
+  left_join(firm_year_input_cost, by=c("vat", "year")) %>% 
+  mutate(allowance_shortage = (emissions - allocated_free)/input_cost)
 
 # Save it -------
 save(firm_year_belgian_euets, file = paste0(proc_data,"/firm_year_belgian_euets.RData"))  
