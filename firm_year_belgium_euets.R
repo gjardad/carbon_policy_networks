@@ -64,7 +64,8 @@ firm_year_belgian_euets <- firm_year_emissions %>%
          capital_prod = ifelse(revenue == 0 | capital == 0, 0, log(revenue/capital)),
          nace5d = as.character(nace5d)) %>% 
   left_join(firm_year_input_cost, by=c("vat", "year")) %>% 
-  mutate(allowance_shortage = (emissions - allocated_free)/input_cost)
+  mutate(allowance_shortage = (emissions - allocated_free)/input_cost,
+         shortage_prod = ifelse(revenue == 0 | allowance_shortage == 0, 0, log(revenue/allowance_shortage)))
 
 # Save it -------
 save(firm_year_belgian_euets, file = paste0(proc_data,"/firm_year_belgian_euets.RData"))  
