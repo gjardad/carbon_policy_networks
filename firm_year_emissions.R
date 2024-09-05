@@ -3,7 +3,10 @@
 ## This code creates data set at the firm-year level with info on
 # 1. emissions
 # 2. BvD id
-# 3. NACE code
+# 3. NACE codes
+# 4. country codes
+# 5. number of allowances allocated for free
+# 6. number of total allowances allocated
 
 #####################
 
@@ -50,14 +53,12 @@ firm_year_emissions  <- installation_year_emissions %>%
     allocated_free = sum(allocatedFree, na.rm = T),
     allocated_total = sum(allocatedTotal, na.rm = T),
     emissions = sum(verified, na.rm = TRUE),  # Total verified emissions
-    pct_combustion = sum(verified[activity_id == 20], na.rm = TRUE),  # Emissions where activity_id == 20
     bvd_id = first(bvd_id),  # Include bvd_id (constant within each group)
     country_id = first(country_id)  # Include country_id (constant within each group)
     # obs: country_id and bvd_id are only inconsistent for two firms
   ) %>%
   ungroup() %>% 
-  filter(firm_id != "") %>% 
-  mutate(pct_combustion = ifelse(emissions == 0, 0, pct_combustion/emissions))
+  filter(firm_id != "")
 
 # Save it -------
 save(firm_year_emissions, file = paste0(proc_data,"/firm_year_emissions.RData"))
