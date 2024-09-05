@@ -2,8 +2,11 @@
 
 ## This code creates data set at the installation-year level with info on
 # 1. emissions
-# 2. BvD id
-# 3. activity and NACE ids
+# 2. activity ids
+# 3. NACE codes
+# 4. country codes
+# 5. number of allowances allocated for free
+# 6. number of total allowances allocated
 
 #####################
 
@@ -25,11 +28,6 @@ output <- paste0(folder, "/carbon_policy_networks/output")
 code <- paste0(folder, "/carbon_policy_networks/code")
 
 # Libraries ----
-
-  #### old code that loads packages before miniCRAN
-  #packages <- paste0(code, "/R_packages")
-  # for all packages, need to also install dependencies from CRAN
-  #install.packages(paste0(packages,"/reprex_2.1.1.tar.gz"), repos = NULL, type = "source")
 
 library(tidyverse)
 library(dplyr) # even though dplyr is included in tidyverse, still need to load it separately
