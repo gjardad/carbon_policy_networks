@@ -8,6 +8,11 @@
 # 5. labor input
 # 6. capital input
 # 7. revenue
+# 8. emissions productivity measure
+# 9. labor productivity measure
+# 10. capital productivity measure
+# 11. total input cost
+# 12. allowance shortage
 
 # for all firms in Belgium treated by the EUETS
 
