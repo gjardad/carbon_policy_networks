@@ -2,6 +2,9 @@
 
 ## This code creates data set that is random sample of B2B
 
+# Important: data records sales_ij
+# which are sales of firm i (supplier) to firm j (buyer)
+
 #####################
 
 
