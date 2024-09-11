@@ -41,14 +41,17 @@ df_ppi <- 1
 long <- df_b2b_sample %>%
   rename(vat_ano = vat_i_ano) %>% 
   left_join(df_national_accounts %>% select(vat_ano, year, nace5d),
-            by = c("vat_ano", "year")) %>%
+            by = c("vat_ano", "year")) %>% # find nace of supplier
   rename(vat_i_ano = vat_ano) %>% 
   group_by(vat_j_ano, year, nace5d) %>%
-  summarize(expenditure = sum(corr_sales_ij, na.rm = TRUE)) %>% 
-  rename(vat = vat_j_ano) %>% 
+  summarize(expenditure = sum(corr_sales_ij, na.rm = TRUE)) %>% # total expenditure on each nace code
   mutate(nace4d = substr(nace5d,1,4)) %>% 
   left_join(ppi, by = c("year", "nace4d")) %>% 
-  mutate(real_expenditure = expenditure/ppi*100)
+  mutate(real_expenditure = expenditure/ppi*100) %>% 
+  rename(vat_ano = vat_j_ano) %>% 
+  left_join(df_national_accounts %>% select(vat_ano, year, nace5d),
+            by = c("vat_ano", "year")) %>% # find nace of buyer
+  rename(vat = vat_ano)
 
 firm_year_input_bundle <- long %>% 
   pivot_wider(names_from = nace5d, 
