@@ -45,13 +45,19 @@ long <- df_b2b_sample %>%
   rename(vat_i_ano = vat_ano) %>% 
   group_by(vat_j_ano, year, nace5d) %>%
   summarize(expenditure = sum(corr_sales_ij, na.rm = TRUE)) %>% 
-  rename(vat = vat_j_ano)
+  rename(vat = vat_j_ano) %>% 
+  mutate(nace4d = substr(nace5d,1,4)) %>% 
+  left_join(ppi, by = c("year", "nace4d")) %>% 
+  mutate(real_expenditure = expenditure/ppi*100)
 
 firm_year_input_bundle <- long %>% 
   pivot_wider(names_from = nace5d, 
-              values_from = expenditure, 
-              names_prefix = "expenditure_nace5d_",
-              values_fill = list(expenditure = 0))
+              values_from = c(expenditure, real_expenditure),
+              values_fill = list(expenditure = 0, real_expenditure = 0))
+
+firm_year_input_bundle <- firm_year_input_bundle %>%
+  rename_with(~gsub("expenditure", "exp_nace5d_", .), starts_with("expenditure")) %>%
+  rename_with(~gsub("real_expenditure", "real_exp_", .), starts_with("real_expenditure"))
 
 # Save it ------
 save(firm_year_input_bundle, file = paste0(proc_data,"/firm_year_input_bundle.RData"))
