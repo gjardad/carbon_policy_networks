@@ -71,26 +71,6 @@ library(readxl)
       ppi_data <- rbind(ppi_data, temp_df)
     }
   }
-
-  # there are two "Manufacture of furniture" sectors: C31 and C310; drop duplicates
-  df_furniture <- ppi_data %>%
-    filter(sector == "Manufacture of furniture") %>%
-    group_by(year, index_year) %>%
-    mutate(n_duplicates = n()) %>%
-    filter(
-      # Keep both if both have a non-NA price_index
-      n_duplicates == 1 | (!is.na(price_index) & n_duplicates == 2) |
-        # If both have NA price_index, keep one randomly
-        (is.na(price_index) & all(is.na(price_index)))
-    ) %>%
-    slice_sample(n = 1) %>%  # Randomly select one if both price_index are NA
-    ungroup() %>% 
-    select(-c(n_duplicates))
-  
-  # Combine the filtered furniture data with all other sectors
-  ppi_data <- ppi_data %>%
-    filter(sector != "Manufacture of furniture") %>%
-    bind_rows(df_furniture) # this places "Manufacture of furniture" obs in diff position
   
   #save(ppi_data, file = paste0(int_data,"/ppi_data.RData"))
 
@@ -121,11 +101,183 @@ library(readxl)
       # Collapse into one column
       ppi_2010 = coalesce(index_2010, index_2015, index_2021)
     ) %>%
-    ungroup() 
+    ungroup() %>% 
+    select(c(code, year, ppi_2010))
   
   #save(ppi_wide, file = paste0(int_data,"/ppi_wide.RData"))
   
 # Create most disaggregated ppi by sector-year
+  
+  # step 1: identify codes
+  codes <- ppi_wide %>%  distinct(code)
+  
+  # step 2: identify "unorthodox" parent codes
+  library(stringr)
+  unorthodox_codes <- ppi_wide %>% 
+    group_by(code) %>% 
+    slice(1) %>% 
+    select(code) %>% 
+    filter(str_detect(code, "-|_")) %>% 
+    rename(parent_code = code)
+  
+  # step 3: build parent codes
+  
+    # step 3.1: parent_code1
+    parent_codes <- codes %>%
+    mutate(parent_code1 = NA_character_) %>%
+    rowwise() %>%
+    mutate(
+      parent_code1 = case_when(
+        # For codes that are letter + 4 digits (e.g., B1234), take letter + 3 digits
+        str_detect(code, "^[BCD]\\d{4}$") ~ str_sub(code, 1, 4),
+        
+        # For codes that are letter + 3 digits (e.g., B123), take letter + 2 digits
+        str_detect(code, "^[BCD]\\d{3}$") ~ str_sub(code, 1, 3),
+        
+        # For B + 2 digits (e.g., B12), parent_code1 is just B
+        str_detect(code, "^B\\d{2}$") ~ "B",
+        
+        # For D + 2 digits (e.g., D12), parent_code1 is "B-D"
+        str_detect(code, "^D\\d{2}$") ~ "B-D",
+        
+        # For C + specific 2 digits, parent_code1 is from parent_codes and contains "_" and "CXX"
+        str_detect(code, "^C(10|11|13|14|17|18|20|21|22|23|24|25|26|27|29|30|31|32)$") ~ {
+          match <- unorthodox_codes %>% 
+            filter(str_detect(parent_code, "_") & str_detect(parent_code, str_c("C", str_sub(code, 2, 3)))) %>%
+            pull(parent_code)
+          ifelse(length(match) > 0, match[1], NA_character_)
+        },
+        
+        # For C + other specific 2 digits, parent_code1 is from parent_codes and contains "-" and "CXX"
+        str_detect(code, "^C(12|15|16|33)$") ~ {
+          match <- unorthodox_codes %>% 
+            filter(str_detect(parent_code, "-") & str_detect(parent_code, str_c("C", str_sub(code, 2, 3)))) %>%
+            pull(parent_code)
+          ifelse(length(match) > 0, match[1], NA_character_)
+        },
+        
+        # For codes starting with "C" and containing "_", parent_code1 is from parent_codes and contains "-" and first three elements of code
+        str_detect(code, "^C(10|13|31)_.+") ~ {
+          match <- unorthodox_codes %>% 
+            filter(str_detect(parent_code, "-") & str_detect(parent_code, str_sub(code, 1, 3))) %>%
+            pull(parent_code)
+          ifelse(length(match) > 0, match[1], NA_character_)
+        },
+        
+        # For codes starting with "C" + 17, 20, 22, 24, 26, or 29 and containing "_", parent_code1 is "C"
+        # (those are included in thw category above, but parent_codes is empty for those)
+        str_detect(code, "^C(17|20|22|24|26|29)_.+") ~ "C",
+        
+        # For codes starting with "C" and containing "-", parent_code1 is "B_C"
+        str_detect(code, "^C.*-") ~ "B_C",
+        
+        # Default case
+        TRUE ~ NA_character_
+      )
+    ) %>%
+    ungroup()
+    
+    # step 3.2: add parent_code1 by hand
+    parent_codes[2,2] <- "B-E36"
+    parent_codes[3,2] <- "B-E36"
+    parent_codes[12,2] <- "B-D"
+    parent_codes[13,2] <- "B_C"
+    parent_codes[14,2] <- "B_C_X_MIG_NRG"
+    parent_codes[15,2] <- "B_C"
+    parent_codes[33,2] <- "B_C"
+    parent_codes[136,2] <- "C"
+    parent_codes[275,2] <- "C"
+    parent_codes[349,2] <- "B-D"
+    parent_codes[354,2] <- "B-E36"
+    parent_codes[c(71:77),2] <- "C11"
+  
+    # step 3.3: parent_code2
+    parent_codes <- parent_codes %>%
+      left_join(parent_codes %>% select(code, parent_code1), 
+                by = c("parent_code1" = "code"), 
+                suffix = c("", "_parent")) %>%
+      mutate(parent_code2 = parent_code1_parent) %>%
+      select(-parent_code1_parent) # Clean up by removing the extra column
+    
+    # step 3.4: parent_code3
+    parent_codes <- parent_codes %>%
+      left_join(parent_codes %>% select(code, parent_code1), 
+                by = c("parent_code2" = "code"), 
+                suffix = c("", "_parent")) %>%
+      mutate(parent_code3 = parent_code1_parent) %>%
+      select(-parent_code1_parent) 
+    
+    # step 3.5: parent_code4
+    parent_codes <- parent_codes %>%
+      left_join(parent_codes %>% select(code, parent_code1), 
+                by = c("parent_code3" = "code"), 
+                suffix = c("", "_parent")) %>%
+      mutate(parent_code4 = parent_code1_parent) %>%
+      select(-parent_code1_parent) # Clean up by removing the extra column
+    
+    # step 3.6: parent_code5
+    parent_codes <- parent_codes %>%
+      left_join(parent_codes %>% select(code, parent_code1), 
+                by = c("parent_code4" = "code"), 
+                suffix = c("", "_parent")) %>%
+      mutate(parent_code5 = parent_code1_parent) %>%
+      select(-parent_code1_parent) # Clean up by removing the extra column
+    
+    # step 3.7: parent_code6
+    parent_codes <- parent_codes %>%
+      left_join(parent_codes %>% select(code, parent_code1), 
+                by = c("parent_code5" = "code"), 
+                suffix = c("", "_parent")) %>%
+      mutate(parent_code6 = parent_code1_parent) %>%
+      select(-parent_code1_parent) # Clean up by removing the extra column
+    
+    # step 3.8: parent_code7
+    parent_codes <- parent_codes %>%
+      left_join(parent_codes %>% select(code, parent_code1), 
+                by = c("parent_code6" = "code"), 
+                suffix = c("", "_parent")) %>%
+      mutate(parent_code7 = parent_code1_parent) %>%
+      select(-parent_code1_parent) # Clean up by removing the extra column
+    
+  parent_codes <- parent_codes[-c(4:11),]
+  
+  #save(parent_codes, file = paste0(int_data,"/parent_codes.RData"))
+    
+  # step 4: identify codes with missing ppi_2010
+  codes_with_missing <- ppi_wide %>%
+    group_by(code) %>%
+    summarise(has_missing = any(is.na(ppi_2010))) %>%
+    filter(has_missing) %>%
+    select(code)
+  
+  # step 5: create array year - codes non-missing
+  
+  # Step 1: Filter and Group Data
+  # Create a list where each element is a vector of codes with non-missing ppi_2010 for a given year
+  codes_by_year <- ppi_wide %>%
+    filter(!is.na(ppi_2010)) %>%
+    group_by(year) %>%
+    summarize(codes = list(code), .groups = 'drop') %>%
+    deframe()  # Converts the data frame to a named vector
+  
+  # Step 2: Create the Array
+  # Initialize an empty array
+  years <- 2000:2022
+  codes_list <- vector("list", length(years))
+  names(codes_list) <- years
+  
+  # Populate the array with codes by year
+  for (year in years) {
+    codes_list[[as.character(year)]] <- codes_by_year[[as.character(year)]]
+  }
+  
+  # Convert the list to an array (if you need it in array format)
+  # This will create a list where each element corresponds to a year
+  ppi_array <- array(unlist(codes_list), dim = c(length(codes_list[[1]]), length(codes_list)))
+  dimnames(ppi_array) <- list(codes_list[[1]], as.character(years))
+  
+  # Alternatively, you can keep it as a named list if you don't need a strict array structure
+  
   
   # build variable parent_code1, ..., parent_coden which represent the higher levels of each nace code
   # build array that contains all the codes (including parent_codes) for which ppi_2010 is non-missing for any given year
