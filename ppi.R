@@ -243,148 +243,39 @@ library(readxl)
   
   #save(parent_codes, file = paste0(int_data,"/parent_codes.RData"))
     
-  # step 4: identify codes with missing ppi_2010
-  codes_with_missing <- ppi_wide %>%
-    group_by(code) %>%
-    summarise(has_missing = any(is.na(ppi_2010))) %>%
-    filter(has_missing) %>%
-    select(code)
-  
-  # step 5: create array year - codes non-missing
-  
-  # Step 1: Filter and Group Data
-  # Create a list where each element is a vector of codes with non-missing ppi_2010 for a given year
-  codes_by_year <- ppi_wide %>%
-    filter(!is.na(ppi_2010)) %>%
-    group_by(year) %>%
-    summarize(codes = list(code), .groups = 'drop') %>%
-    deframe()  # Converts the data frame to a named vector
-  
-  # Step 2: Create the Array
-  # Initialize an empty array
-  years <- 2000:2022
-  codes_list <- vector("list", length(years))
-  names(codes_list) <- years
-  
-  # Populate the array with codes by year
-  for (year in years) {
-    codes_list[[as.character(year)]] <- codes_by_year[[as.character(year)]]
-  }
-  
-  # Convert the list to an array (if you need it in array format)
-  # This will create a list where each element corresponds to a year
-  ppi_array <- array(unlist(codes_list), dim = c(length(codes_list[[1]]), length(codes_list)))
-  dimnames(ppi_array) <- list(codes_list[[1]], as.character(years))
-  
-  # Alternatively, you can keep it as a named list if you don't need a strict array structure
-  
-  
-  # build variable parent_code1, ..., parent_coden which represent the higher levels of each nace code
-  # build array that contains all the codes (including parent_codes) for which ppi_2010 is non-missing for any given year
-  
-  # for each code c and year y:
-    # if ppi_2010 is non-missing, then set ppi_collapsed to the value of ppi_2010 in c-y
-    # if ppi_2010 is missing, check if parent_code1 is in the list of codes for which ppi_2010 is non-missing in y
-      # if parent_code1 is there, then set the value of ppi_collapsed in c-y to the value of ppi_2010 in parent_code1 year y
-    # else, check if parent_code2 is in the list of codes for which ppi_2010 is non-missing in y
-    # do this iterative procedure until you fill all the ppi_collapsed.
-  
-  
-  get_parent_code <- function(code) {
-    if (nchar(code) > 1) {
-      return(sub(".$", "", code))
-    }
-    return(NA)  # Return NA for top-level codes (e.g., "B")
-  }
-  
-  # Sort by code and year
-  ppi_wide <- ppi_wide %>% arrange(code, year)
-  
-  # Create a new column ppi_collapsed
-  ppi_wide <- ppi_wide %>%
-    group_by(year) %>%
-    mutate(ppi_collapsed = ppi_2010)  # Start by setting ppi_collapsed equal to ppi_2010
-  
-  # Fill missing ppi_collapsed based on the hierarchy
-  for (i in 1:nrow(ppi_wide)) {
-    if (is.na(ppi_wide$ppi_collapsed[i])) {
-      parent_code <- get_parent_code(ppi_wide$code[i])
-      while (!is.na(parent_code)) {
-        parent_value <- ppi_wide %>%
-          filter(code == parent_code, year == ppi_wide$year[i]) %>%
-          pull(ppi_2010)
+  # step 4: create ppi_final
+    
+    # step 4.1: create ppi_final in ppi_wide
+    ppi_wide$ppi_final <- ppi_wide$ppi_2010
+    
+    # step 4.2: loop over rows with missing ppi_2010
+    missing_rows <- which(is.na(ppi_wide$ppi_2010))
+    
+    for (i in missing_rows) {
+      code <- ppi_wide$code[i]
+      year <- ppi_wide$year[i]
+      
+      # Find all parent codes for this code
+      parent_candidates <- parent_codes[parent_codes$code == code, ]
+      
+      # Iterate over the parent_code variables (parent_code1, parent_code2, ..., parent_code7)
+      for (j in 1:7) {
+        parent_code <- parent_candidates[[paste0("parent_code", j)]]
         
-        if (length(parent_value) > 0 && !is.na(parent_value)) {
-          ppi_wide$ppi_collapsed[i] <- parent_value
+        # Check if the parent_code has a non-missing ppi_2010 value in the same year
+        ppi_value <- ppi_wide$ppi_2010[ppi_wide$code == parent_code & ppi_wide$year == year]
+        
+        if (length(ppi_value) > 0 && !is.na(ppi_value)) {
+          # Assign the first non-missing ppi_2010 from the parent code to ppi_final
+          ppi_wide$ppi_final[i] <- ppi_value
           break
         }
-        parent_code <- get_parent_code(parent_code)  # Move up the hierarchy
       }
     }
-  }
   
-  # View the result
-  print(ppi_wide)
+    # step 4.3: clean and save ppi_wide
+    ppi_final <- ppi_wide %>% 
+      select(-c(ppi_2010))
   
-  
-  
-  
-  
-  
-  
-  
-  # Create correspondence between sector name and sector code -----
-  
-  correspondence <- read_excel(paste0(raw_data,"/correspondence_nace_codes.xlsx")) %>% 
-    select(c(2,4)) %>% 
-    rename(code = 1, sector = 2) %>% 
-    mutate(
-      code_level1 = ifelse(grepl("[A-Za-z]", code), code, NA),
-      code_level2 = substr(code, 1, 2),
-      code_level3 = substr(gsub("\\.", "", code), 1, 3),
-      code_level4 = substr(gsub("\\.", "", code), 1, 4)
-    ) %>%
-    fill(code_level1) %>% 
-    select(-c("code")) %>% 
-    distinct() %>% 
-    group_by(sector) %>%
-    slice_max(nchar(code_level4)) %>%  # Select row with max number of digits in 'code_level4'
-    ungroup()
-  
-  # Merge data sets ----
-  
-  ppi_merge <- ppi_wide %>% 
-    left_join(correspondence, by = "sector") %>% 
-    select(-c(3:7))
-  
-  # Populate obs for which code_levels are non-existent
-  #did this by hand looking at the labels and the name of the sectors according to
-  # https://ec.europa.eu/eurostat/databrowser/view/sts_inppd_a__custom_12844308/default/table?lang=en
-  # which is Eurostat page for "Producer prices in industry, domestic market - annual data"
-  
-  ppi_merge <- ppi_megre %>% 
-    mutate(
-      code_level1 = case_when(
-        sector == "Industry (except construction, sewerage, waste management and remediation activities)" ~ "B-E36",
-        sector == "Industry (except construction, sewerage, waste management and remediation activities), except food, beverages and tobacco)" ~ "B-E36_X_FOOD",
-        sector == "Mining and quarrying; manufacturing; electricity, gas, steam and air conditioning supply" ~ "B-D",
-        sector == "Mining and quarrying; manufacturing" ~ "B_C",
-        sector == "Mining and quarrying; manufacturing (except MIG energy)" ~ "B_C_X_MIG_NRG",
-        sector == "Mining and quarrying; manufacturing (except MIG energy), except food, beverages and tobacco" ~ "B_C_X_FD_MIG_NRG",
-        sector == "Mining and quarrying" ~ "B",
-        sector == "Manufacturing" ~ "C",
-        sector == "Manufacture of food products; beverages and tobacco products" ~ "C10-C12",
-        sector == "Manufacture of food products and beverages" ~ "C10_C11",
-        sector == "Manufacture of textiles, wearing apparel, leather and related products" ~ "C13-C15",
-        sector == "Manufacture of textiles and wearing apparel" ~ "C13_C14",
-        sector == "Manufacture of wood, paper, printing and reproduction" ~ "C16-C18",
-        sector == "Manufacture of paper and paper products; printing and reproduction of recorded media" ~ "C17_C18",
-        sector == "Manufacture of chemicals and chemical products; basic pharmaceutical products and pharmaceutical preparations" ~ "C20_C21",
-        sector == 
-          TRUE ~ code_level1  # Keep existing value if none of the conditions are met
-      )
-      
-    )
-  
-  
+    save(ppi_final, file = paste0(proc_data,"/ppi_final.RData"))
   
