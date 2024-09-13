@@ -36,13 +36,14 @@ library(readxl)
   # Initialize an empty data frame to store results
   ppi_data <- data.frame()
 
-  # Find data sets within raw_data folder
-  file_names <- list.files(path = raw_data, pattern = "^eurostat_ppi", full.names = FALSE)
+  # Find data sets within raw_data/Eurostat folder
+  file_folder <- paste0(raw_data, "/Eurostat")
+  file_names <- list.files(path = file_folder, pattern = "^eurostat_ppi", full.names = FALSE)
   
   # Loop through each data set
   for (file in file_names){
     
-    file_path <- paste0(raw_data,"/", file)
+    file_path <- paste0(filde_folder,"/", file)
     
     # Get the names of all sheets
     sheet_names <- excel_sheets(file_path)
