@@ -43,6 +43,9 @@ hicp_allitems <- read_excel(paste0(raw_data,"/Eurostat/eurostat_hicp_coicop_annu
                             sheet = "Sheet 1",
                             range = "B11:AW11", col_names = FALSE)
 
+df_belgium_vat <- read_dta(paste0(raw_data,"/NBB/EUTL_Belgium.dta")) %>% 
+  rename(bvd_id = bvdid, firm_id = companyregistrationnumber)
+
 # Clean data -------
 
   # include "0" in front of nace5d
@@ -125,11 +128,36 @@ hicp_allitems <- read_excel(paste0(raw_data,"/Eurostat/eurostat_hicp_coicop_annu
     long <- long %>% 
       mutate(expenditure = expenditure/price_index*100)
     
-  # wide format
-    long <- long %>% 
-      select(-c(price_index)) 
-    # otwise pivot_wider also considers different price_indexes when creating the unique obs
+# Create wide format data -----
     
+  long <- long %>% 
+    select(-c(price_index)) 
+  # otwise pivot_wider also considers different price_indexes when creating the unique obs
+    
+  # input bundle only for EUETS treated firms
+    
+    df_belgium_vat <- df_belgium_vat %>% 
+      rename(vat_j_ano = vat_ano)
+    
+    long_euts <- long %>% 
+      left_join(df_belgium_vat %>% select(vat_j_ano, id),
+                by = "vat_j_ano") %>% 
+      filter(!is.na(id))
+    
+    firm_year_input_bundle_euets <- long_euets %>% 
+      pivot_wider(names_from = nace5d, 
+                  values_from = c(expenditure),
+                  values_fill = list(expenditure = 0),
+                  names_prefix = "exp_") %>% 
+      rename(vat_ano = vat_j_ano) %>% 
+      left_join(df_national_accounts %>% select(vat_ano, year, nace5d),
+                by = c("vat_ano", "year")) %>% # find nace of buyer
+      rename(vat = vat_ano)
+    
+    save(firm_year_input_bundle_euets, file = paste0(proc_data,"/firm_year_input_bundle_euets.RData"))
+    
+  # input bundle for all firms
+
   firm_year_input_bundle <- long %>% 
     pivot_wider(names_from = nace5d, 
                 values_from = c(expenditure),
@@ -140,5 +168,4 @@ hicp_allitems <- read_excel(paste0(raw_data,"/Eurostat/eurostat_hicp_coicop_annu
               by = c("vat_ano", "year")) %>% # find nace of buyer
     rename(vat = vat_ano)
 
-# Save it ------
-save(firm_year_input_bundle, file = paste0(proc_data,"/firm_year_input_bundle.RData"))
+  save(firm_year_input_bundle, file = paste0(proc_data,"/firm_year_input_bundle.RData"))
