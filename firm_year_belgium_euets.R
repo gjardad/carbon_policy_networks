@@ -72,6 +72,10 @@ firm_year_belgian_euets <- firm_year_emissions %>%
   mutate(allowance_shortage = (emissions - allocated_free)/input_cost,
          shortage_prod = ifelse(revenue == 0 | allowance_shortage == 0, 0, log(revenue/allowance_shortage)))
 
+  # clean duplicates (different firmid but are actually the same obs)
+  firm_year_belgian_euets <- firm_year_belgian_euets %>% 
+    distinct(vat, year, bvd_id, .keep_all = TRUE)
+
 # Save it -------
 save(firm_year_belgian_euets, file = paste0(proc_data,"/firm_year_belgian_euets.RData"))  
 
