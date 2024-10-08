@@ -16,6 +16,18 @@
 
 # for all firms in Belgium treated by the EUETS
 
+# Obs:
+
+# 1. firm_id and bvd_id are not 1:1 matching. There are more distinct firm_ids than
+# there are bvd_ids. This is because there are some firm_ids which contain "0" in front and some that
+# don't, even in cases when the underlying identifier is the same
+# (e.g. firm_ids 0419052173 and 419052173 are matched with the same bvd_id)
+# also, there are multiple firm_ids for which bvd_id is missing (and therefore belongs to the category
+# of firms for which firm_ids are different but bvd_id is the same, in particular bvd_id == "")
+
+# 2. firm_ids from firm_year_emissions for which country_id is Belgian is a smaller number than the
+# firm_ids from df_belgium_euets. the former is a subset of the latter. 
+
 #####################
 
 # Setup ------
@@ -43,33 +55,30 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
 # Import data -------
 
 library(haven)
-df_belgium_vat <- read_dta(paste0(raw_data,"/NBB/EUTL_Belgium.dta")) %>% 
+df_belgium_euets <- read_dta(paste0(raw_data,"/NBB/EUTL_Belgium.dta")) %>% 
   rename(bvd_id = bvdid, firm_id = companyregistrationnumber)
 
 load(paste0(proc_data, "/firm_year_emissions.RData"))
 
 df_national_accounts <- read_dta(paste0(raw_data,"/NBB/Annual_Accounts_MASTER_ANO.dta"))
 
-load(paste0(proc_data, "/firm_year_input_cost.RData"))
-
 # Create df ------
 
 firm_year_belgian_euets <- firm_year_emissions %>% 
-  left_join(df_belgium_vat %>% select(firm_id, vat_ano), by = "firm_id") %>% 
+  left_join(df_belgium_euets %>% select(firm_id, vat_ano), by = "firm_id") %>% 
   filter(!is.na(vat_ano)) %>% 
   distinct() %>% 
   left_join(df_national_accounts %>%  select(vat_ano, year, 
-                                             v_0022_27,v_0000070, v_0001033,
+                                             v_0022_27,v_0000070, v_0001023,
                                              v_0001003, v_0001013, nace5d),
             by = c("vat_ano", "year")) %>% 
   rename(vat = vat_ano, capital = v_0022_27, revenue = v_0000070,
-         fte = v_0001003, wage_bill = v_0001033, hours = v_0001013) %>% 
+         fte = v_0001003, wage_bill = v_0001023, hours = v_0001013) %>% 
   mutate(emissions_prod = ifelse(revenue == 0 | emissions == 0, 0, log(revenue/emissions)),
          labor_prod = ifelse(revenue == 0 | fte == 0 , 0, log(revenue/fte)),
          capital_prod = ifelse(revenue == 0 | capital == 0, 0, log(revenue/capital)),
-         nace5d = as.character(nace5d)) %>% 
-  left_join(firm_year_input_cost, by=c("vat", "year")) %>% 
-  mutate(allowance_shortage = (emissions - allocated_free)/input_cost,
+         nace5d = as.character(nace5d)) %>%
+  mutate(allowance_shortage = emissions - allocated_free,
          shortage_prod = ifelse(revenue == 0 | allowance_shortage == 0, 0, log(revenue/allowance_shortage)))
 
   # clean duplicates (different firmid but are actually the same obs)
@@ -78,5 +87,3 @@ firm_year_belgian_euets <- firm_year_emissions %>%
 
 # Save it -------
 save(firm_year_belgian_euets, file = paste0(proc_data,"/firm_year_belgian_euets.RData"))  
-
-
