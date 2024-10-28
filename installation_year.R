@@ -36,8 +36,6 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
 
 df_installation <- read.csv(paste0(raw_data,"/EUTL/installation.csv"))
 
-df_account <- read.csv(paste0(raw_data,"/EUTL/account.csv"))
-
 df_compliance <- read.csv(paste0(raw_data,"/EUTL/compliance.csv"))
 
 ## Clean data -------
