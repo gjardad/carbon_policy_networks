@@ -65,7 +65,7 @@ df_national_accounts <- read_dta(paste0(raw_data,"/NBB/Annual_Accounts_MASTER_AN
 # Create df ------
 
 firm_year_belgian_euets <- firm_year_emissions %>% 
-  left_join(df_belgium_euets %>% select(firm_id, vat_ano), by = "firm_id") %>% 
+  left_join(df_belgium_euets %>% select(bvd_id, vat_ano), by = "bvd_id") %>% 
   filter(!is.na(vat_ano)) %>% 
   distinct() %>% 
   left_join(df_national_accounts %>%  select(vat_ano, year, 
