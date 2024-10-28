@@ -40,7 +40,7 @@ load(paste0(proc_data, "/firm_year_belgian_euets.RData"))
   
   ## get rid of missing NACEs
   firm_year_belgian_euets <- firm_year_belgian_euets %>%
-    group_by(firm_id) %>%
+    group_by(bvd_id) %>%
     fill(nace5d, .direction = "downup") %>%
     ungroup() %>% 
     filter(!is.na(nace5d)) # those firms are missing on everything
@@ -63,7 +63,7 @@ load(paste0(proc_data, "/firm_year_belgian_euets.RData"))
   
 # Create dispersion measures ------
 
-dispersion <- firm_year_belgian_euets %>%
+dispersion_nace <- firm_year_belgian_euets %>%
   group_by(nace2d, year) %>%
   # create summary stats of the distribution
   summarize(
@@ -87,8 +87,34 @@ dispersion <- firm_year_belgian_euets %>%
          dispersion_labor = p90_labor_prod - p10_labor_prod,
          dispersion_capital = p90_capital_prod - p10_capital_prod,
          dispersion_shortage = p90_shortage_prod - p10_shortage_prod)
+  
+  dispersion_activity <- firm_year_belgian_euets %>%
+    group_by(activity_id, year) %>%
+    # create summary stats of the distribution
+    summarize(
+      avg_emissions_prod = mean(emissions_prod, na.rm = TRUE),
+      p90_emissions_prod = quantile(emissions_prod, 0.9, na.rm = TRUE),
+      p10_emissions_prod = quantile(emissions_prod, 0.1, na.rm = TRUE),
+      avg_labor_prod = mean(labor_prod, na.rm = TRUE),
+      p90_labor_prod = quantile(labor_prod, 0.9, na.rm = TRUE),
+      p10_labor_prod = quantile(labor_prod, 0.1, na.rm = TRUE),
+      avg_capital_prod = mean(capital_prod, na.rm = TRUE),
+      p90_capital_prod = quantile(capital_prod, 0.9, na.rm = TRUE),
+      p10_capital_prod = quantile(capital_prod, 0.1, na.rm = TRUE),
+      avg_shortage_prod = mean(shortage_prod, na.rm = TRUE),
+      p90_shortage_prod = quantile(shortage_prod, 0.9, na.rm = TRUE),
+      p10_shortage_prod = quantile(shortage_prod, 0.1, na.rm= TRUE),
+      num_obs = n()
+    ) %>%
+    ungroup() %>% 
+    # create dispersion measures
+    mutate(dispersion_emissions = p90_emissions_prod - p10_emissions_prod,
+           dispersion_labor = p90_labor_prod - p10_labor_prod,
+           dispersion_capital = p90_capital_prod - p10_capital_prod,
+           dispersion_shortage = p90_shortage_prod - p10_shortage_prod)
 
 # Save it -------
-save(dispersion, file = paste0(proc_data,"/dispersion_belgium.RData"))
+save(dispersion_nace, file = paste0(proc_data,"/dispersion_nace_belgium.RData"))
+save(dispersion_activity, file = paste0(proc_data,"/dispersion_activity_belgium.RData"))
   
   
