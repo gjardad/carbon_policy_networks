@@ -25,7 +25,7 @@ code <- paste0(folder, "/carbon_policy_networks/code")
 
 library(tidyverse)
 library(dplyr) # even though dplyr is included in tidyverse, still need to load it separately
-library(purrr)
+library(Matrix)
 
 # Import data ------
 
@@ -64,58 +64,98 @@ i <- 0
 
 for(y in 2005:2022){
   
-  # Step 1: widen B2B
+  # subset the relevant year
   df <- df_b2b %>%
     filter(year == y)
   
-  firms <- unique(c(df$vat_j_ano, df$vat_i_ano))
-
-  df_complete <- expand.grid(
-    vat_j_ano = firms,
-    vat_i_ano = firms,
-    year = y
-  )
+  # make sure buyers and suppliers cover the same set
+  firms <- unique(c(df$vat_j_ano, df$vat_i_ano))  # Ensures firms are aligned
+  n_firms <- length(firms)
+  firm_index_j <- match(df$vat_j_ano, firms)
+  firm_index_i <- match(df$vat_i_ano, firms)
   
-  df_complete <- df_complete %>% 
-    left_join(df %>% select(vat_j_ano, vat_i_ano, year, corr_sales_ij),
-              by = c("vat_j_ano", "vat_i_ano", "year")) %>%
-    mutate(corr_sales_ij = replace_na(corr_sales_ij, 0))
+  # create a square sparse matrix A (firms x firms) where rows are buyers
+  A <- sparseMatrix(i = firm_index_i,
+                    j = firm_index_j,
+                    x = df$corr_sales_ij,
+                    dims = c(length(firms), length(firms)))
   
-  transaction_matrix <- df_complete %>%
-    select(vat_i_ano, vat_j_ano, corr_sales_ij) %>%
-    pivot_wider(names_from = vat_i_ano, values_from = corr_sales_ij) %>%
-    rename(vat = vat_j_ano) %>%
-    mutate(year = y) %>% 
-    # left_join with data on emissions costs instead
-    left_join(emissions_costs,
-              by = c("vat", "year")) %>%
-    rename(vat_ano = vat) %>% 
-    left_join(firm_year_labor_costs, by = c("vat_ano", "year")) %>%
-    rename(buyer = vat_ano) %>% 
-    column_to_rownames(var = "buyer") %>% 
-    select(-year)
+  # emissions "sector"
+    emissions_y <- emissions_costs %>% 
+      filter(year == y) %>% 
+      select(vat, emissions)
   
-  # Step 2: add emissions and shortage "sectors"
-  emissions <- rep(0, ncol(transaction_matrix))
-  shortage <- rep(0, ncol(transaction_matrix))
-  
-  transaction_matrix <- transaction_matrix %>% 
-    rbind(emissions, shortage)
-  
-  # Step 3: make costs relative to total input costs
-  transaction_matrix <- transaction_matrix %>% 
-    mutate(input_cost = rowSums(across(where(is.numeric)), na.rm = TRUE),
-           across(where(is.numeric), ~ .x / input_cost),
-           across(everything(), ~ ifelse(is.na(.), 0, .))) %>% 
-    select(-c(input_cost, labor)) 
+    # map the firms in emissions_y to the appropriate rows in A
+    buyer_indices <- match(emissions_y$vat, firms)  # Find the row indices of the buyers in A
+    valid_indices <- !is.na(buyer_indices)
+    buyer_indices <- buyer_indices[valid_indices]
     
-  # Step 4: inverse
-  I_matrix <- diag(1, nrow(transaction_matrix)) # Create identity matrix of correct size
-  leontief_inverse <- solve(I_matrix - transaction_matrix)
+    emissions_valid <- emissions_y$emissions[valid_indices]
+    
+    emissions_column <- sparseMatrix(
+      i = buyer_indices,  # Rows corresponding to the buyers
+      j = rep(1, length(buyer_indices)),  # All in the new last column
+      x = emissions_valid,  # The actual emissions values
+      dims = c(n_firms, 1)  # Adding only one new column
+    )
   
-  i = i + 1
+  # labor "sector"
   
-  leontief_list[[i]] <- leontief_inverse
+    labor_y <- firm_year_labor_costs %>% 
+      filter(year == y) %>% 
+      select(vat_ano, labor)
+    
+    # impute sector-level average labor costs to with NA labor
+    
+    # map the firms in labor_y to the appropriate rows in A
+    buyer_indices <- match(labor_y$vat_ano, firms)  # Find the row indices of the buyers in A
+    valid_indices <- !is.na(buyer_indices)
+    buyer_indices <- buyer_indices[valid_indices]
+    
+    labor_valid <- labor_y$labor[valid_indices]
+    
+    labor_column <- sparseMatrix(
+      i = buyer_indices,  # Rows corresponding to the buyers
+      j = rep(1, length(buyer_indices)),  # All in the new last column
+      x = labor_valid,  # The actual emissions values
+      dims = c(n_firms, 1)  # Adding only one new column
+    )
+  
+  # add emissions sector as supplier column
+  A_extended <- cbind(A, emissions_column, labor_column)
+  
+  # add emissions sector as buyer to make sure A is square
+  firms_extended <- c(firms, "emissions", "labor")  # Ensures firms are aligned
+  n_firms_extended <- length(firms_extended)
+  A_extended <- rbind(A_extended, sparseMatrix(i = integer(0), j = integer(0), dims = c(2, n_firms_extended)))
+  
+  # normalize it so that it sums to 1
+  row_sums <- rowSums(A_extended)
+  
+  row_sums[row_sums == 0] <- 1  # Replace zero row sums with 1 to avoid division by zero
+  
+  A_normalized <- A_extended
+  A_normalized@x <- A_normalized@x / row_sums[A_normalized@i + 1]  # Element-wise division of each row
+  # normalizes the non-zero entries in the sparse matrix by dividing them by the corresponding row sums.
+  # The @x slot contains the non-zero values of the sparse matrix, and @i gives the row indices (zero-based, hence the +1).
+  
+  # now get rid of labor sector
+  A_normalized <- A_normalized[1:(nrow(A_normalized) - 1), 1:(ncol(A_normalized) - 1)]
+  
+  # select the last column of A_normalized (this is vector v)
+  v <- A_normalized[, ncol(A_normalized)]
+  
+  # Neumann series calculation (iterative)
+    result <- v  # Initialize the result with v (A^0 v = v)
+    current_power <- v  # This will store the intermediate A^n v
+    
+    # Loop to sum A^n v up to A^50 v
+    for (n in 1:2) {
+      current_power <- A_normalized %*% current_power  # Compute A^n v (iteratively applying A)
+      result <- result + current_power  # Sum A^n v to the result
+    }
+  
+  leontief_list[[i]] <- result
 
 }
 
