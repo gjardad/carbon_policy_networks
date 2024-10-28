@@ -32,43 +32,85 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
 
 # Import data ------
 
-load(paste0(proc_data,"/firm_year_input_bundle_euets.RData"))
+load(paste0(proc_data,"/firm_year_domestic_input_bundle_euets.RData"))
+
+load(paste0(proc_data,"/firm_year_imports_value_euets.RData"))
 
 load(paste0(proc_data, "/firm_year_belgian_euets.RData"))
 
+load(paste0(proc_data,"/firm_year_real_output_2005.RData"))
+
 # Clean data set -----
 
-  firm_year_input_bundle_euets <- firm_year_input_bundle_euets %>% 
-    mutate(nace2d = str_sub(nace5d, 1, 2)) %>% 
+  firm_year_domestic_input_bundle_euets <- firm_year_domestic_input_bundle_euets %>% 
     filter(year >= 2005)
 
-  # create within-sector average expenditure in year 2005
-  nace2d_averages_2005 <- firm_year_input_bundle_euets %>%
-    filter(year == 2005) %>% # Filter for year 2005
-    group_by(nace2d) %>%      # Group by nace2d
-    summarize(across(starts_with("exp_"), mean, na.rm = TRUE)) %>% 
-    rename_with(~ gsub("^exp_", "avg2005_exp_", .), starts_with("exp_"))
+  # select expenditure on NACE codes that belong to
+  # sections B, C, D
+  #firm_year_domestic_input_bundle_euets <- firm_year_domestic_input_bundle_euets %>%
+  #  select(matches("^real_exp_(0[5-9]|[1-2][0-9]|3[0-5])"), c("vat", "year", "nace5d"))
+
+  # are there nace5d codes for which everyone is zero?
+  #exp_col_sum <- colSums(firm_year_domestic_input_bundle_euets[sapply(firm_year_domestic_input_bundle_euets, is.numeric)])
+  #zero_sum_columns <- names(exp_col_sum)[which(exp_col_sum == 0)]
+  #firm_year_domestic_input_bundle_euets <- firm_year_domestic_input_bundle_euets[,setdiff(names(firm_year_domestic_input_bundle_euets), zero_sum_columns)]
   
-  firm_year_input_bundle_euets <- firm_year_input_bundle_euets %>% 
-    left_join(nace2d_averages_2005, by = "nace2d") %>% 
-    left_join(firm_year_belgian_euets %>% select(vat, year, emissions),
-              by = c("vat", "year")) %>%
-    mutate(across(starts_with("exp_"), 
-                  .fns = ~ . - get(paste0("avg2005_", cur_column())), 
-                  .names = "gap_{.col}")) %>% 
-    select(vat, year, emissions, starts_with("gap"), starts_with("nace")) %>% 
-    ungroup()
+  # add output
+  firm_year_inputs_euets <- firm_year_domestic_input_bundle_euets %>% 
+    rename(vat_ano = vat) %>% 
+    left_join(firm_year_real_output_2005 %>% select(vat_ano, year, real_output),
+              by = c("vat_ano", "year"))
+  
+  # add imports
+  firm_year_inputs_euets <- firm_year_inputs_euets %>% 
+    left_join(firm_year_imports_value_euets, by = c("vat_ano", "year"))
+  
+  # do all euets firms have imports data?
+  setdiff(unique(firm_year_domestic_input_bundle_euets$vat), unique(firm_year_imports_value_euets$vat_ano))
+  
+  # make imports = 0 for firms wout imports data
+  firm_year_inputs_euets <- firm_year_inputs_euets %>% 
+    mutate(across(starts_with("real_exp_"), 
+                  ~ ifelse(is.na(.), 0, .)))
+  
+  # add emissions and activity_id
+  firm_year_inputs_euets <- firm_year_inputs_euets %>% 
+    rename(vat = vat_ano) %>% 
+    left_join(firm_year_belgian_euets %>% select(vat, year, emissions, activity_id),
+              by = c("vat", "year"))
+  
+  # input expenditure relative to output
+  firm_year_inputs_euets <- firm_year_inputs_euets %>% 
+    mutate(emission_intensity = emissions/real_output,
+           across(starts_with("real_exp_"), 
+                  ~ . / real_output, 
+                  .names = "exp_share_{str_remove(.col, 'real_exp_')}")) %>% 
+    select(vat, year, nace5d, emission_intensity, activity_id, starts_with("exp_share"), real_output)
+  
+  # clean data set
+  df_regression <- firm_year_inputs_euets %>% 
+    filter(!is.na(real_output) & !is.na(emission_intensity) & emission_intensity > 0)
 
 # Regresssion --------
+  
+  model <- lm(emission_intensity ~ activity_id, data = df_regression)
+  
+  expenditure_vars <- df_regression %>%
+    select(starts_with("exp_")) %>%
+    names()
+  
+  formula <- as.formula(paste("emission_intensity ~ activity_id + ", paste(expenditure_vars, collapse = " + ")))
+  
+  model2 <- lm(formula, data = df_regression)
 
   library(lfe)
   
-  expenditure_vars <- firm_year_input_bundle_euets %>%
+  expenditure_vars <- firm_year_domestic_input_bundle_euets %>%
     select(starts_with("gap_")) %>%
     names()
   
   # Split the data by year
-  data_by_year <- split(firm_year_input_bundle_euets, firm_year_input_bundle_euets$year)
+  data_by_year <- split(firm_year_domestic_input_bundle_euets, firm_year_domestic_input_bundle_euets$year)
   
   # Create a list to store models
   models <- list()
