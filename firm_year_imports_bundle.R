@@ -52,6 +52,14 @@ load(paste0(proc_data,"/ppi_final.RData"))
     ) %>% 
     ungroup()
 
+  # total imports
+  firm_year_total_imports <- df_trade %>% 
+    filter(flow == "I") %>% 
+    group_by(vat_ano, year) %>% 
+    summarise(total_imports = sum(cn_value, na.rm = T))
+  
+  save(firm_year_total_imports, file = paste0(proc_data,"/firm_year_total_imports.RData"))
+
 # EUETS imports ----
   df_belgium_euets <- read_dta(paste0(raw_data,"/NBB/EUTL_Belgium.dta")) %>% 
     rename(bvd_id = bvdid, firm_id = companyregistrationnumber)
