@@ -32,117 +32,58 @@ df_belgium_euets <- read_dta(paste0(raw_data,"/NBB/EUTL_Belgium.dta")) %>%
 
 df_eutl_account <- read.csv(paste0(raw_data,"/EUTL/account.csv"))
 
+load(paste0(proc_data,"/installation_year_emissions.RData"))
+
 # Clean data ------
 
-df_belgium_euets <- df_belgium_euets %>% 
-  group_by(vat_ano) %>%
-  slice_sample(n = 1) %>%
-  ungroup() %>%
-  select(vat_ano, bvd_id, firm_id)
+# how many firms in df_belgium_euets?
+length(unique(df_belgium_euets$bvd_id)) # 334 BvD ids
+length(unique(df_belgium_euets$firm_id)) # 416 firm ids
+length(unique(df_belgium_euets$vat_ano))
 
-df_eutl_account_sliced <- df_eutl_account %>% 
+# how many firms if restrict attention to accounts 100-7, 120-0?
+be_emitters <- df_belgium_euets %>% 
+  filter(accounttype_id %in% c("100-7","120-0") & bvd_id != "")
+length(unique(be_emitters$bvd_id)) # 292 BvD ids
+length(unique(be_emitters$vat_ano)) # 292 vats
+
+df_eutl_account <- df_eutl_account %>% 
   rename(account_id = id, account_type = accountType_id, bvd_id = bvdId,
          firm_id = companyRegistrationNumber) %>% 
-  select(account_id, account_type, bvd_id, installation_id, firm_id) %>% 
-  filter(account_type %in% c("100-7","120-0")) %>% 
-  group_by(bvd_id) %>%
-  slice_sample(n = 1) %>%
-  ungroup() %>%
-  select(bvd_id, firm_id, installation_id)
+  filter(account_type %in% c("100-7","120-0"))
 
-eutl_belgian <- df_eutl_account_sliced %>% 
-  left_join(df_belgium_euets, by = "bvd_id")
-
-test <- eutl_belgian %>% filter(!is.na(vat_ano) & vat_ano != "")
-length(unique(test$vat_ano))
-
-test <- eutl_belgian %>% 
-  select(vat_ano) %>% 
-  distinct() %>% 
-  filter(!is.na(vat_ano) & vat_ano!="") %>% 
-  mutate(iseuets = 1)
+be_eutl_account <- df_eutl_account %>% 
+  filter(registry_id == "BE" & bvd_id != "")
+length(unique(be_eutl_account$bvd_id)) # 292 BvD ids as well
 
 # there are 292 accounts in EUTL for which bvd_id corresponds to a firm with a VAT in Belgium records
 
-firm_year_emissions  <- installation_year_emissions %>% 
-  left_join(df_account %>% select(companyRegistrationNumber, bvdId, installation_id),
-            by = "installation_id") %>% 
-  rename(firm_id = companyRegistrationNumber, bvd_id = bvdId) %>% 
-  group_by(bvd_id, year) %>%
-  summarise(
-    emissions = sum(verified, na.rm = TRUE),  # Total verified emissions
-    country_id = first(country_id)  # Include country_id (constant within each group)
-  ) %>%
-  ungroup()
+# how much of those can I get emissions for?
+be_with_emissions <- installation_year_emissions %>% 
+  left_join(be_eutl_account %>% select(bvd_id, installation_id, account_type), by = "installation_id") %>% 
+  filter(!is.na(bvd_id))
 
-be_emissions <- firm_year_emissions %>% 
-  filter(!is.na(bvd_id) & bvd_id != "" & country_id == "BE")
+length(unique(be_with_emissions$bvd_id)) # 281 BvD ids
 
-length(unique(be_emissions$bvd_id))  
-# there are 281 bvdis for which we have emissions data
+# 11 firms for which we observe accounts but for which we don't have emissions data
 
-# what's going on with the 11 bvds present in df_account but for which we don't have emissions data?
+# which are those firms?
+firms_with_accounts <- unique(be_eutl_account$bvd_id)
+firms_with_emissions <- unique(be_with_emissions$bvd_id)
+firms_wout_emissions <- setdiff(firms_with_accounts, firms_with_emissions)
 
-no_emissions <- setdiff(test$bvd_id, be_emissions$bvd_id)
+accounts_wout_emissions <- be_eutl_account %>% filter(bvd_id %in% firms_wout_emissions)
+installations_wout_emissions <- unique(accounts_wout_emissions$installation_id) # 14 installations
 
-hey <- df_account %>%
-  filter(bvdId %in% no_emissions & accountType_id == "100-7") %>%
-  select(installation_id)
-
-# there are 14 installations for which account type is 100-7 and bvd_id is one of the 11 bvd_ids
-
-load(paste0(proc_data,"/installation_year_emissions.RData"))
-
-hello <- installation_year_emissions %>% 
-  filter(installation_id %in% hey$installation_id)
-
-# but none of those installations seem to be in the data set for installation_year_emissions. why?
+installation_year_emissions %>% filter(installation_id %in% installations_wout_emissions) # 0 rows
 
 df_installation <- read.csv(paste0(raw_data,"/EUTL/installation.csv"))
-
-investigate <- df_installation %>% 
-  filter(id %in% hey$installation_id) %>% 
-  select(id, nace_id)
-
-# it's still unclear to me....
-
-
-
-df_installation <- read.csv(paste0(raw_data,"/EUTL/installation.csv")) %>% 
-  rename(installation_id = id)
 df_compliance <- read.csv(paste0(raw_data,"/EUTL/compliance.csv"))
 
-from_the_source <- df_installation %>% 
-  left_join(df_compliance, by = "installation_id")
+df_installation %>% filter(id %in% installations_wout_emissions) # all 14 are here
+df_compliance %>% filter(installation_id %in% installations_wout_emissions) # information on those 14 is very poor
 
-hello_from_the_source <- df_compliance %>% 
-  filter(installation_id %in% hey$installation_id)
+# Conclusion: 292 VATs in Belgium treated by EUETS, but we only have emissions data for 281 of those. 
+# This is true independently of whether we use Gert's crosswalk or directly from EUTL microdata
 
-#%>% 
-  group_by(firm_id, year) %>%
-  summarise(
-    allocated_free = sum(allocatedFree, na.rm = T),
-    allocated_total = sum(allocatedTotal, na.rm = T),
-    emissions = sum(verified, na.rm = TRUE),  # Total verified emissions
-    bvd_id = first(bvd_id),  # Include bvd_id (constant within each group)
-    country_id = first(country_id)  # Include country_id (constant within each group)
-    # obs: country_id and bvd_id are only inconsistent for two firms
-  ) %>%
-  ungroup() %>% 
-  filter(firm_id != "")
-
-load(paste0(proc_data,"/installation_year_emissions.RData"))
-
-
-
-df_compare2 <- df_account %>% 
-  left_join(df_belgium_euets, by = "firm_id")
-
-test <- df_compare %>% filter(!is.na(vat_ano) & vat_ano != "")
-
-test2 <- df_compare2 %>% filter(!is.na(vat_ano) & vat_ano != "")
-
-test3 <- setdiff(test$firm_id.x, test2$firm_id)
-
-#
 
