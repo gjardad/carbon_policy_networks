@@ -1,6 +1,7 @@
 #### HEADER -------
 
 ## Regressions on price pass-through of carbon pricing shocks
+# at the monthly level
 
 #####################
 
@@ -118,8 +119,24 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
   euets <- c("D35", "C19", "B", "C23", "C24", "C20", "C17")
   noneuets <- setdiff(unique(df_regression$sector), euets)
   
+  europe <- c("AT", "BE", "BG", "HR", "CY", "CZ", "DK", "DE", "EE", "EL", "ES", "FI",
+              "FR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO",
+              "SK", "SE", "SI")
+  
   df_regression_noneuets <- df_regression %>% 
     filter(sector %in% noneuets)
+  
+  df_regression_europe <- df_regression %>% 
+    filter(country %in% europe)
+  
+  df_regression_europe_noneuets <- df_regression %>% 
+    filter(country %in% europe & sector %in% noneuets)
+  
+  df_regression_europe_euets <- df_regression %>% 
+    filter(country %in% europe & sector %in% euets)
+  
+  df_regression_europe_energy <- df_regression %>% 
+    filter(country %in% europe & sector == "D35")
   
 # Regressions -----
   
@@ -133,7 +150,7 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
   summary(ols_model_fe)
   
   # TSLS regression with surprise as an instrument
-  iv_model_surprise <- ivreg(del_log_prices ~ month + exposure_to_pz | month + exposure_to_surprise, data = df_regression)
+  iv_model_surprise_fe <- ivreg(del_log_prices ~ month + exposure_to_pz | month + exposure_to_surprise, data = df_regression)
   summary(iv_model_surprise)
   
   # TSLS regression with shock as an instrument
@@ -157,29 +174,78 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
     summary(iv_model_surprise)
     
     # TSLS regression with shock as an instrument
-    iv_model_shock <- ivreg(del_log_prices ~ exposure_to_pz | exposure_to_shock, data = df_regression)
+    iv_model_shock <- ivreg(del_log_prices ~ exposure_to_pz | exposure_to_shock, data = df_regression_noneuets)
     summary(iv_model_shock)
     
     iv_model_shock_fe <- ivreg(del_log_prices ~ month + exposure_to_pz | month + exposure_to_shock, data = df_regression_noneuets)
     summary(iv_model_shock_fe)
     
-  # Robustness: no energy sector
+  # Robustness: only Europe
     
     # OLS
-    ols_model <- lm(del_log_prices ~ exposure_to_pz, data = df_regression_noneuets)
+    ols_model <- lm(del_log_prices ~ exposure_to_pz, data = df_regression_europe)
     summary(ols_model)
     
-    ols_model_fe <- lm(del_log_prices ~ month + exposure_to_pz, data = df_regression_noneuets)
+    ols_model_fe <- lm(del_log_prices ~ month + exposure_to_pz, data = df_regression_europe)
     summary(ols_model_fe)
     
-    # TSLS regression with surprise as an instrument
-    iv_model_surprise <- ivreg(del_log_prices ~ month + exposure_to_pz | month + exposure_to_surprise, data = df_regression_noneuets)
-    summary(iv_model_surprise)
+    # IV w/ all sectors
+    iv_model_surprise_europe <- ivreg(del_log_prices ~ exposure_to_pz | exposure_to_surprise, data = df_regression_europe)
+    summary(iv_model_surprise_europe)
     
-    # TSLS regression with shock as an instrument
-    iv_model_shock <- ivreg(del_log_prices ~ exposure_to_pz | exposure_to_shock, data = df_regression)
+    iv_model_surprise_europe_fe <- ivreg(del_log_prices ~ month + exposure_to_pz | month + exposure_to_surprise, data = df_regression_europe)
+    summary(iv_model_surprise_europe_fe)
+    
+    iv_model_shock_europe <- ivreg(del_log_prices ~ exposure_to_pz | exposure_to_shock, data = df_regression_europe)
+    summary(iv_model_shock_europe)
+    
+    iv_model_shock_europe_fe <- ivreg(del_log_prices ~ month + exposure_to_pz | month + exposure_to_shock, data = df_regression_europe)
+    summary(iv_model_shock_europe_fe)
+    
+    # OLS w/ only targeted
+    ols_model_euets <- lm(del_log_prices ~ exposure_to_pz, data = df_regression_europe_euets)
+    summary(ols_model_euets)
+    
+    ols_model_euets_fe <- lm(del_log_prices ~ month + exposure_to_pz, data = df_regression_europe_euets)
+    summary(ols_model_euets_fe)
+    
+    # IV w/ only targeted
+    iv_model_surprise_europe <- ivreg(del_log_prices ~ exposure_to_pz | exposure_to_surprise, data = df_regression_europe)
+    summary(iv_model_surprise_europe)
+    
+    iv_model_surprise_europe_fe <- ivreg(del_log_prices ~ month + exposure_to_pz | month + exposure_to_surprise, data = df_regression_europe)
+    summary(iv_model_surprise_europe_fe)
+    
+    iv_model_shock <- ivreg(del_log_prices ~ exposure_to_pz | exposure_to_shock, data = df_regression_europe_euets)
+    summary(iv_model_shock)
+  
+    iv_model_shock_euets_fe <- ivreg(del_log_prices ~ month + exposure_to_pz | month + exposure_to_shock, data = df_regression_europe_euets)
+    summary(iv_model_shock_euets_fe)
+    
+    # OLS w/ only non-targeted
+    ols_model_noneuets <- lm(del_log_prices ~ exposure_to_pz, data = df_regression_europe_noneuets)
+    summary(ols_model_noneuets)
+    
+    ols_model_noneuets_fe <- lm(del_log_prices ~ month + exposure_to_pz, data = df_regression_europe_noneuets)
+    summary(ols_model_noneuets_fe)
+    
+    # IV w/ only non-targeted
+    iv_model_shock <- ivreg(del_log_prices ~ exposure_to_pz | exposure_to_shock, data = df_regression_europe_noneuets)
     summary(iv_model_shock)
     
-    iv_model_shock_fe <- ivreg(del_log_prices ~ month + exposure_to_pz | month + exposure_to_shock, data = df_regression_noneuets)
-    summary(iv_model_shock_fe)
+    iv_model_shock_noneuets_fe <- ivreg(del_log_prices ~ month + exposure_to_pz | month + exposure_to_shock, data = df_regression_europe_noneuets)
+    summary(iv_model_shock_noneuets_fe)
+    
+    # OLS with only energy
+    ols_model_energy_fe <- ivreg(del_log_prices ~ month + exposure_to_pz | month + exposure_to_shock, data = df_regression_europe_energy)
+    summary(iv_model_shock_energy_fe)    
+    
+    # IV w/ only energy
+    iv_model_shock_energy_fe <- ivreg(del_log_prices ~ month + exposure_to_pz | month + exposure_to_shock, data = df_regression_europe_energy)
+    summary(iv_model_shock_energy_fe)
+    
+    
+    
+    
+    
   
