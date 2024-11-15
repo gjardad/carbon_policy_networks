@@ -1,6 +1,8 @@
 #### HEADER -------
 
-## This 
+## Code produces graph that shows evolution of 
+# aggregate emisisons for Europe, aggregate emissions
+# for Belgium and Belgian EUETS emissions over time
 
 #####################
 
@@ -31,6 +33,12 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
 load(paste0(proc_data, "/firm_year_belgian_euets.RData"))
 
 df_owindata <- read_csv(paste0(raw_data,"/annual-co2-emissions-per-country.csv"))
+
+emission_price <- read_csv(paste0(raw_data,"/icap_price.csv")) %>% 
+  select(1,3) %>% 
+  slice(-1) %>% 
+  rename(date = 1, price = 2) %>% 
+  mutate(price = as.numeric(price))
 
 # Clean data set -----
 
@@ -85,14 +93,53 @@ df_owindata <- df_owindata %>%
     theme(
       panel.grid.major = element_blank(),      # Remove major grid lines
       panel.grid.minor = element_blank(),      # Remove minor grid lines
-      panel.background = element_rect(fill = "white", color = NA),  # Set background to white
+      panel.border = element_blank(),  # no borders
       axis.line = element_line(color = "black"),  # Add solid x and y axis lines
       axis.line.x.bottom = element_line(color = "black"),  # Ensure bottom x-axis line
       axis.line.y.left = element_line(color = "black"),    # Ensure left y-axis line
       legend.position = "none",                 # Remove the legend
-      axis.title.y = element_text(margin = margin(r = 15))
+      axis.title.y = element_text(margin = margin(r = 15), size = 14),
+      axis.text.x = element_text(size = 12),
+      axis.text.y = element_text(size = 12)
     )
   
+  # save it
+  ggsave(plot1, file = paste0(output, "/aggregate_emissions.png"),
+         width = 8, height = 6, units = "in")
+  
+  # Convert date to Date class if it's not already
+  emission_price$date <- as.Date(emission_price$date)
+  
+  # Plot the evolution of prices with specific years shown on the x-axis
+  plot2 <- ggplot(emission_price, aes(x = date, y = price)) +
+    geom_line(color = "darkgray", linewidth = 1.2) +
+    
+    # Adjust x-axis to show only years 2005, 2010, 2015, and 2020
+    scale_x_date(
+      date_breaks = "4 years",
+      date_labels = "%Y",
+      limits = as.Date(c("2006-01-01", "2022-12-31"))
+    ) +
+    
+    # Add axis labels and title
+    labs(title = "",
+         x = "",
+         y = "Euros/tCO2eq") +
+    
+    theme_minimal() +
+    theme(
+      axis.title.x = element_text(size = 14),
+      axis.title.y = element_text(size = 14),
+      axis.text.x = element_text(size = 12),
+      axis.text.y = element_text(size = 12),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.border = element_blank(),
+      axis.line = element_line(color = "black")
+    )
+  
+  plot2
+
   # EUETS emissions as a share of Belgian emissions
   df_belgian_emissions <- df_owindata %>% 
     filter(entity == "Belgium") %>% 
