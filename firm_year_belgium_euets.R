@@ -13,6 +13,7 @@
 # 10. capital productivity measure
 # 11. total input cost
 # 12. allowance shortage
+# 13. whether firm belongs to sample from annual accounts
 
 # for all firms in Belgium treated by the EUETS
 
@@ -62,6 +63,8 @@ load(paste0(proc_data, "/firm_year_emissions.RData"))
 
 df_national_accounts <- read_dta(paste0(raw_data,"/NBB/Annual_Accounts_MASTER_ANO.dta"))
 
+load(paste0(proc_data,"/annual_accounts_selected_sample.RData"))
+
 # Create df ------
 
 firm_year_belgian_euets <- firm_year_emissions %>% 
@@ -69,17 +72,27 @@ firm_year_belgian_euets <- firm_year_emissions %>%
   filter(!is.na(vat_ano)) %>% 
   distinct() %>% 
   left_join(df_national_accounts %>%  select(vat_ano, year, 
-                                             v_0022_27,v_0000070, v_0001023,
-                                             v_0001003, v_0001013, nace5d),
+                                             v_0022_27,turnover_VAT, v_0001023,
+                                             v_0001003, nace5d),
             by = c("vat_ano", "year")) %>% 
-  rename(vat = vat_ano, capital = v_0022_27, revenue = v_0000070,
-         fte = v_0001003, wage_bill = v_0001023, hours = v_0001013) %>% 
+  rename(vat = vat_ano, capital = v_0022_27, revenue = turnover_VAT,
+         fte = v_0001003, wage_bill = v_0001023) %>% 
   mutate(emissions_prod = ifelse(revenue == 0 | emissions == 0, 0, log(revenue/emissions)),
-         labor_prod = ifelse(revenue == 0 | fte == 0 , 0, log(revenue/fte)),
+         fte_prod = ifelse(revenue == 0 | fte == 0 , 0, log(revenue/fte)),
+         labor_prod = ifelse(revenue == 0 | wage_bill == 0 , 0, log(revenue/wage_bill)),
          capital_prod = ifelse(revenue == 0 | capital == 0, 0, log(revenue/capital)),
          nace5d = as.character(nace5d)) %>%
   mutate(allowance_shortage = emissions - allocated_free,
          shortage_prod = ifelse(revenue == 0 | allowance_shortage == 0, 0, log(revenue/allowance_shortage)))
+
+  # add dummy for whether it is part of sample from annual accounts
+  sample_dummy <- df_annual_accounts_selected_sample %>% 
+    select(vat_ano, year) %>% 
+    mutate(in_sample = 1)
+  
+  firm_year_belgian_euets <- firm_year_belgian_euets %>% 
+    left_join(sample_dummy,
+              by = c("vat" = "vat_ano", "year"))
 
   # clean duplicates (different firmid but are actually the same obs)
   firm_year_belgian_euets <- firm_year_belgian_euets %>% 

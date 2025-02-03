@@ -49,27 +49,28 @@ df_account <- read.csv(paste0(raw_data,"/EUTL/account.csv"))
 
 # Clean data ------
 
-df_account <- df_account %>% 
-  rename(account_id = id, account_type = accountType_id, bvd_id = bvdId,
-         firm_id = companyRegistrationNumber) %>% 
-  select(account_id, account_type, bvd_id, installation_id, firm_id) %>% 
-  filter(account_type %in% c("100-7","120-0"))
-
-firm_year_emissions  <- installation_year_emissions %>% 
-  left_join(df_account, by = "installation_id") %>% 
-  group_by(bvd_id, year) %>%
-  summarise(
-    allocated_free = sum(allocatedFree, na.rm = T),
-    allocated_total = sum(allocatedTotal, na.rm = T),
-    emissions = sum(verified, na.rm = TRUE),  # Total verified emissions
-    bvd_id = first(bvd_id),  # Include bvd_id (constant within each group)
-    country_id = first(country_id),  # Include country_id (constant within each group)
-    
-    # activity_id associated with the installation with the largest verified emissions
-    activity_id = activity_id[which.max(verified)]  
-  ) %>%
-  ungroup() %>% 
-  filter(bvd_id != "")
+  df_account <- df_account %>% 
+    rename(account_id = id, account_type = accountType_id, bvd_id = bvdId,
+           firm_id = companyRegistrationNumber) %>% 
+    select(account_id, account_type, bvd_id, installation_id, firm_id) %>% 
+    filter(account_type %in% c("100-7","120-0"))
+  
+  firm_year_emissions  <- installation_year_emissions %>% 
+    left_join(df_account %>% select(bvd_id, installation_id),
+              by = "installation_id") %>% 
+    distinct() %>% 
+    group_by(bvd_id, year) %>%
+    summarise(
+      allocated_free = sum(allocatedFree, na.rm = T),
+      allocated_total = sum(allocatedTotal, na.rm = T),
+      emissions = sum(verified, na.rm = TRUE),  # Total verified emissions
+      bvd_id = first(bvd_id),  # Include bvd_id (constant within each group)
+      country_id = first(country_id),  # Include country_id (constant within each group)
+      # activity_id associated with the installation with the largest verified emissions
+      activity_id = activity_id[which.max(verified)]  
+    ) %>%
+    ungroup() %>% 
+    filter(bvd_id != "")
 
 # Save it -------
 save(firm_year_emissions, file = paste0(proc_data,"/firm_year_emissions.RData"))
