@@ -37,7 +37,9 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
 # Import data ------
 
 library(haven)
-df_b2b <- read_dta(paste0(raw_data,"/NBB/B2B_ANO.dta"))
+#df_b2b <- read_dta(paste0(raw_data,"/NBB/B2B_ANO.dta"))
+
+load(paste0(proc_data, "/b2b_sample.RData"))
 
 df_national_accounts <- read_dta(paste0(raw_data,"/NBB/Annual_Accounts_MASTER_ANO.dta"))
 
@@ -45,6 +47,15 @@ df_belgium_euets <- read_dta(paste0(raw_data,"/NBB/EUTL_Belgium.dta")) %>%
   rename(bvd_id = bvdid, firm_id = companyregistrationnumber)
 
 load(paste0(proc_data,"/ppi_final.RData"))
+
+# Create nominal expenditure at nace5d level -----
+
+  # include "0" in front of nace5d
+  library(stringr)
+  df_national_accounts <- df_national_accounts %>% 
+    mutate(nace5d = str_pad(nace5d, width = 5, pad = "0"))
+
+
 
 # Create real expenditure at nace5d level -------
 
