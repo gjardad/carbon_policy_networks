@@ -45,7 +45,23 @@ library(Matrix)
   
   load(paste0(proc_data,"/firm_year_belgian_euets.RData"))
   
-  # load annual emissions prices
+  # load emissions prices
+  emissions_price <- read_csv(paste0(raw_data, "/icap_price.csv")) %>% 
+    select(1,3) %>% 
+    rename(date = 1, price = 2) %>% 
+    slice(-1)
+  
+  emissions_price$date <- as.Date(emissions_price$date)
+  
+  emissions_price <- emissions_price %>%
+    mutate(price = as.numeric(as.character(price)))
+  
+  # make it annual prices
+  annual_emissions_price <- emissions_price %>%
+    mutate(year = year(date)) %>%
+    group_by(year) %>%
+    summarise(average_price = mean(price, na.rm = TRUE)) %>%
+    ungroup()
   
 # Build input-output matrix Omega ----
   
@@ -62,9 +78,10 @@ library(Matrix)
                                         "year", "corr_sales") 
   
   exp_list <- list()
+  exp_share_list <- list()
   i <- 0
   
-  y <- 2025
+  y <- 2005
   #for(y in 2005:2022){
   
   # (sparse) matrix of expenditures exp_matrix
@@ -90,16 +107,63 @@ library(Matrix)
     i <- i + 1
     exp_list[[i]] <- exp_matrix
     
-    # create vector of total expenditures by firm
-    df_balance_sheet_year <- firm_year_balance_sheet_selected_sample %>% 
-      filter(year == y)
+    # create vector of total costs by firm
+    # total costs = total exp inputs + labor + emissions
     
-    total_expenditure <- df_balance_sheet_year$network_purchases
+      # create map btw indices in df_balance_sheet and df_b2b
+      df_balance_sheet_year <- firm_year_balance_sheet_selected_sample %>% 
+        filter(year == y)
+      
+      firm_index_balance_sheet <- match(df_balance_sheet_year$vat_ano, firms)
+      valid_indices <- na.omit(firm_index_balance_sheet)
+      
+      # total exp on inputs
+      total_expenditure_inputs <- df_balance_sheet_year$network_purchases
+      
+      ordered_total_expenditure_inputs <- rep(NA, n_firms)
+      ordered_total_expenditure_inputs[valid_indices] <- total_expenditure_inputs[!is.na(firm_index_balance_sheet)]
     
-    firm_index_balance_sheet <- match(df_balance_sheet_year$vat_ano, firms)
-    
-    ordered_x <- rep(NA, n_firms)
-    ordered_total_expenditure[firm_index_balance_sheet] <- total_expenditure
+      # wage bill
+      wage_bill <- df_balance_sheet_year$wage_bill
+
+      ordered_wage_bill <- rep(NA, n_firms)
+      ordered_wage_bill[valid_indices] <- wage_bill[!is.na(firm_index_balance_sheet)]
+      
+      # emissions
+      df_emissions_year <- firm_year_belgian_euets %>% 
+        filter(year == y, in_sample == 1) %>% 
+        select(vat, emissions, allowance_shortage)
+      
+      annual_emissions_price_year <- annual_emissions_price %>% 
+        filter(year == y)
+      
+      firm_index_emissions <- match(df_emissions_year$vat, firms)
+      valid_indices <- na.omit(firm_index_emissions)
+      
+      emissions <- df_emissions_year$emissions
+      
+      ordered_emissions <- rep(NA, n_firms)
+      ordered_emissions[valid_indices] <- emissions[!is.na(firm_index_emissions)]
+      
+      ordered_emissions_costs <- ordered_emissions*annual_emissions_price_year[[2]]
+      
+      # allowance shortage
+      allowance_shortage <- df_emissions_year$allowance_shortage
+      
+      ordered_allowance_shortage <- rep(NA, n_firms)
+      ordered_allowance_shortage[valid_indices] <- allowance_shortage[!is.na(firm_index_emissions)]
+      
+      ordered_allowance_shortage_costs <- ordered_allowance_shortage*annual_emissions_price_year[[2]]
+      
+      # total exp 
+      # all quantities are in nominal euros
+      ordered_total_costs = ordered_total_expenditure_inputs + 
+        ordered_wage_bill + ordered_emissions_costs
+      
+    # expenditure share matrix
+    exp_share_matrix <- exp_matrix
+    exp_share_matrix@x <- exp_matrix@x / ordered_total_costs[exp_matrix@i + 1]
+    exp_share_list[[i]] <- exp_share_matrix
     
     
   #}
