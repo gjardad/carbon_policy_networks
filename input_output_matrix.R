@@ -12,6 +12,12 @@
 # Thus by some theorems we get that Leontief exists and is element-wise nonnegative
 # (Gershgorin circle theorem + section 2.1 in Carvalho and Tahbaz-Salehi, Production Networks: A Primer)
 
+# This code generates four objects:
+# list of matrices N x N with total expenditures of each row on each column, by year
+# list of IO matrices N x N with expenditure as share of total expenditures of each row on each column, by year
+# list of matrices N x 1 with VATs of firms in the order in which they show up in the IO matrix, by year
+# list of matrices N x 1 with firms' total expenditures (inputs + labor + emissions), by year
+
 #####################
 
 ## Setup ------
@@ -80,6 +86,8 @@ library(Matrix)
   exp_list <- list()
   io_matrix_list <- list()
   vats_as_ordered_in_io_matrix <- list()
+  firms_total_costs_list <- list()
+  
   i <- 0
   
   for(y in 2005:2022){
@@ -168,14 +176,17 @@ library(Matrix)
     io_matrix_list[[i]] <- io_matrix
     
     # vector of VATs in order of appearance in I-O matrix
-    vats_as_ordered_in_io_matrix[[i]] <- firms 
+    vats_as_ordered_in_io_matrix[[i]] <- firms
     
+    # vector that stores firms' total expenditure (inputs + labor + emissions)
+    firms_total_costs_list[[i]] <- ordered_total_costs
   }
   
 # save it -----
 save(exp_list, file = paste0(proc_data,"/io_matrix_by_year_in_absolute_terms.RData"))
 save(io_matrix_list, file = paste0(proc_data,"/io_matrix_by_year.RData"))
 save(vats_as_ordered_in_io_matrix, file = paste0(proc_data,"/vats_as_ordered_in_io_matrix.RData"))
+save(firms_total_costs_list, file = paste0(proc_data,"/firms_total_costs_by_year.RData"))
 
 
 
