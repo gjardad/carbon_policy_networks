@@ -35,6 +35,7 @@ library(Matrix)
   load(paste0(proc_data,"/io_matrix_by_year.RData"))
   load(paste0(proc_data,"/vats_as_ordered_in_io_matrix.RData"))
   load(paste0(proc_data,"/firm_year_belgian_euets.RData"))
+  load(paste0(proc_data,"/firms_total_costs_by_year.RData"))
 
 # Create column of emission intensiveness in the Leontief inverse -------
 
@@ -49,21 +50,23 @@ library(Matrix)
     i <- i + 1
     
     io_matrix <- io_matrix_list[[i]]
+    ordered_total_costs <- firms_total_costs_list[[i]]
     firms <- vats_as_ordered_in_io_matrix[[i]]
     n_firms <- nrow(io_matrix)
     
     firm_emissions <- firm_year_belgian_euets %>% 
       filter(year == y, in_sample == 1) %>% 
-      select(vat, emissions, revenue) %>% 
-      mutate(emission_intensiveness = emissions/revenue)
+      select(vat, emissions)
     
     index_of_pollutant_firms <- match(firm_emissions$vat, firms)
     valid_indices <- na.omit(index_of_pollutant_firms)
     
-    emission_intensiveness_unordered <- firm_emissions$emission_intensiveness 
+    emissions_unordered <- firm_emissions$emissions 
     
-    emission_intensiveness <- rep(0, n_firms)
-    emission_intensiveness[valid_indices] <- emission_intensiveness_unordered[!is.na(index_of_pollutant_firms)]
+    ordered_emissions <- rep(0, n_firms)
+    ordered_emissions[valid_indices] <- emissions_unordered[!is.na(index_of_pollutant_firms)]
+    
+    emission_intensiveness <- ordered_emissions/ordered_total_costs
     
     psi_e <- emission_intensiveness
     current_power <- io_matrix %*% emission_intensiveness
