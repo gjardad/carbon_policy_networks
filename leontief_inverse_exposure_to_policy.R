@@ -36,6 +36,7 @@ library(Matrix)
   load(paste0(proc_data,"/io_matrix_by_year.RData"))
   load(paste0(proc_data,"/firm_year_belgian_euets.RData"))
   load(paste0(proc_data,"/vats_as_ordered_in_io_matrix.RData"))
+  load(paste0(proc_data,"/firms_total_costs_by_year.RData"))
   
   # load emissions prices
   emissions_price <- read_csv(paste0(raw_data, "/icap_price.csv")) %>% 
@@ -70,26 +71,31 @@ library(Matrix)
     i <- i + 1
     
     io_matrix <- io_matrix_list[[i]]
+    ordered_total_costs <- firms_total_costs_list[[i]]
     firms <- vats_as_ordered_in_io_matrix[[i]]
+    annual_emissions_price_year <- annual_emissions_price %>% 
+      filter(year == y)
+    
     n_firms <- nrow(io_matrix)
     
     firm_emissions <- firm_year_belgian_euets %>% 
       filter(year == y, in_sample == 1) %>% 
-      select(vat, emissions, revenue) %>% 
-      mutate(emission_intensiveness = emissions/revenue)
+      select(vat, emissions)
     
     index_of_pollutant_firms <- match(firm_emissions$vat, firms)
     valid_indices <- na.omit(index_of_pollutant_firms)
     
-    emission_intensiveness_unordered <- firm_emissions$emission_intensiveness 
+    emissions_unordered <- firm_emissions$emissions 
     
-    emission_intensiveness <- rep(0, n_firms)
-    emission_intensiveness[valid_indices] <- emission_intensiveness_unordered[!is.na(index_of_pollutant_firms)]
-    # valid_indices has length larger than n_firms_euets because there are firms treated by EUETS
-    # but for which emissions in a particular year are 0
+    ordered_emissions <- rep(0, n_firms)
+    ordered_emissions[valid_indices] <- emissions_unordered[!is.na(index_of_pollutant_firms)]
+    
+    emission_intensiveness <- ordered_emissions/ordered_total_costs
+    
+    share_of_emission_costs <- emission_intensiveness*annual_emissions_price_year[[2]]
     
     n_firms_euets <- sum(emission_intensiveness > 0)
-    indices_firms_with_positive_emissions <- which(emission_intensiveness > 0)
+    indices_firms_with_positive_emissions <- which(emission_costs > 0)
     
     psi_exposure_matrix <- Matrix(0, nrow = n_firms, ncol = n_firms_euets, sparse = TRUE)
     
@@ -101,7 +107,7 @@ library(Matrix)
       basis_vector[index_of_firm] <- 1
       
       psi_j <- Matrix(0, nrow = n_firms, ncol = 1, sparse = TRUE)
-      psi_j[index_of_firm] <- emission_intensiveness[index_of_firm]
+      psi_j[index_of_firm] <- share_of_emission_costs[index_of_firm]
       
       current_power <- io_matrix %*% basis_vector
       
