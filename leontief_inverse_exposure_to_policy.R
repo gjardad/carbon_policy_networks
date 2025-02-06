@@ -3,8 +3,13 @@
 ## This code creates the column of network-adjusted exposure to firms treated by EUETS
 # by year for all firms in the final sample
 
-# In the paper's notation, it creates the column psi_(:,j) for each j treated by EUETS
+# In the paper's notation, it creates the column psi_(:,j)*e_j for each j treated by EUETS
 # for each year
+
+# Notice that even though formally the exposure includes prices, that is,
+# exposure = psi_(:,j)*e_j*p_z
+# I do not multiply the terms by prices because when calculating the covariances
+# prices come out of the covariance term (see computational appendix)
 
 #####################
 
@@ -92,10 +97,10 @@ library(Matrix)
     
     emission_intensiveness <- ordered_emissions/ordered_total_costs
     
-    share_of_emission_costs <- emission_intensiveness*annual_emissions_price_year[[2]]
+    #share_of_emission_costs <- emission_intensiveness*annual_emissions_price_year[[2]]
     
     n_firms_euets <- sum(emission_intensiveness > 0)
-    indices_firms_with_positive_emissions <- which(emission_costs > 0)
+    indices_firms_with_positive_emissions <- which(emission_intensiveness > 0)
     
     psi_exposure_matrix <- Matrix(0, nrow = n_firms, ncol = n_firms_euets, sparse = TRUE)
     
@@ -107,7 +112,7 @@ library(Matrix)
       basis_vector[index_of_firm] <- 1
       
       psi_j <- Matrix(0, nrow = n_firms, ncol = 1, sparse = TRUE)
-      psi_j[index_of_firm] <- share_of_emission_costs[index_of_firm]
+      psi_j[index_of_firm] <- emission_intensiveness[index_of_firm]
       
       current_power <- io_matrix %*% basis_vector
       
