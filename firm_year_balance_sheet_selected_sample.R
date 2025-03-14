@@ -117,7 +117,7 @@ library(readxl)
            network_purchases = total_purchases_from_sample,
            imports = total_I, exports = total_X) %>% 
     mutate(sales_final_demand = turnover - total_sales - exports,
-           total_sales = network_sales + sales_final_demand + exports)
+           total_sales = network_sales + sales_final_demand + exports) # this number doesn't really makes sense...
 
 # save it ----
 save(firm_year_balance_sheet_selected_sample, file = paste0(proc_data,"/firm_year_balance_sheet_selected_sample.RData"))  
