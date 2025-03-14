@@ -34,6 +34,30 @@ library(dplyr)
   sector_output <- read_csv(paste0(raw_data,"/Eurostat/eurostat_output_basic_prices_by_sector_belgium.csv"))
   sector_value_added <- read_csv(paste0(raw_data,"/Eurostat/eurostat_value_added_basic_prices_by_sector_belgium.csv"))
   load(paste0(proc_data,"/firm_year_belgian_euets.RData"))
+  
+  # output and value added by sector from FIGARO
+  figaro <- data.frame()
+  for(y in 2010:2022){
+    
+    temp <- read_csv(paste0(raw_data,"/FIGARO/figaro_use_table_", y, ".csv")) %>% 
+      select(1, starts_with("BE"))
+    
+    sum_output <- t(colSums(temp[ , 2:(ncol(temp)-5)]))
+    value_added <- t(colSums(temp[2948:2950, 2:(ncol(temp)-5)]))
+    
+    sector_names <- sub("^[^_]*_", "", colnames(temp)[2:(length(colnames(temp)) - 5)])
+    
+    test <- data.frame(
+      nace2d = sector_names,
+      year = rep(y, length(sector_names)),
+      figaro_value_added = value_added[1,]*10^6,
+      figaro_output = sum_output[1,]*10^6
+    )
+    
+    rownames(test) <- NULL
+    
+    figaro <- rbind(figaro, test)
+  }
 
 # Build data frame -----
   
@@ -96,6 +120,24 @@ library(dplyr)
     mutate(nace2d = sub(":.*", "", nace2d),
            value_added_eurostat = value_added_eurostat*10^6)
   
+  figaro <- figaro %>% 
+    mutate(nace2d = case_when(
+      nace2d == "C10T12" ~ "C10-C12",
+      nace2d == "C13T15" ~ "C13-C15",
+      nace2d == "C31_32" ~ "C31_C32",
+      nace2d == "D35" ~ "D",
+      nace2d == "E37T39" ~ "E37-E39",
+      nace2d == "J59_60" ~ "J59_J60",
+      nace2d == "J62_63" ~ "J62_J63",
+      nace2d == "M69_70" ~ "M69_M70",
+      nace2d == "M74_75" ~ "M74_M75",
+      nace2d == "N80T82" ~ "N80-N82",
+      nace2d == "Q87_88" ~ "Q87_Q88",
+      nace2d == "R90T92" ~ "R90-R92",
+      TRUE ~ nace2d
+      )
+    )
+  
   df_sectoral_emissions <- sector_emissions %>% 
     left_join(sector_emission_intensity, by = c("gas", "year", "nace2d")) %>%
     filter(gas == "CO2") %>%
@@ -105,12 +147,8 @@ library(dplyr)
                                    emissions/emission_intensity)) %>% 
     left_join(euets_firms_by_sector, by = c("nace2d", "year")) %>%
     left_join(sector_value_added, by = c("nace2d", "year")) %>% 
-    mutate(noneuets_emissions = emissions - euets_emissions,
-           noneuets_output = output - euets_output,
-           noneuets_value_added = value_added_eurostat - euets_value_added,
-           noneuets_emission_intensity = noneuets_emissions/noneuets_output,
-           euets_emission_intensity = euets_emissions/euets_output) %>% 
-    filter(!is.na(euets_output))
+    left_join(figaro, by = c("nace2d", "year")) %>% 
+    filter(year < 2023)
   
   # Obs: remember units!
   # emissions are in ton of CO2-eq
