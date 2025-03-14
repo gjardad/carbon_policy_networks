@@ -49,6 +49,10 @@ library(readxl)
 
 # Clean data ----
   
+  #is auxiliary data ready?
+  aux_data <- T
+  if(aux_data == F){
+    
   # calculate firms' total purchases and total sales
   #sales_ij is sales of firm i to firm j
   total_transactions <- df_b2b %>%
@@ -104,11 +108,17 @@ library(readxl)
     )
   
   save(transactions_abroad, file = paste0(int_data,"/transactions_abroad.RData"))
+}
   
 # Build final data set ----
   
+  # load aux data
+  load(paste0(int_data,"/total_transactions.RData"))
+  load(paste0(int_data,"/transactions_with_sampled_firms.RData"))
+  load(paste0(int_data,"/transactions_abroad.RData"))
+  
   firm_year_balance_sheet_selected_sample <- df_annual_accounts_selected_sample %>% 
-    select(vat_ano, year, turnover_VAT, v_0009800, v_0001023) %>% 
+    select(vat_ano, year, turnover_VAT, v_0009800, v_0001023, nace5d) %>% 
     rename(value_added = v_0009800, wage_bill = v_0001023, turnover = turnover_VAT) %>% 
     left_join(total_transactions, by = c("vat_ano", "year")) %>% 
     left_join(transactions_with_sampled_firms, by = c("vat_ano", "year")) %>% 
@@ -117,7 +127,7 @@ library(readxl)
            network_purchases = total_purchases_from_sample,
            imports = total_I, exports = total_X) %>% 
     mutate(sales_final_demand = turnover - total_sales - exports,
-           total_sales = network_sales + sales_final_demand + exports) # this number doesn't really makes sense...
+           total_sales_within_sample = network_sales + sales_final_demand + exports)
 
 # save it ----
 save(firm_year_balance_sheet_selected_sample, file = paste0(proc_data,"/firm_year_balance_sheet_selected_sample.RData"))  
