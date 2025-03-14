@@ -1,7 +1,7 @@
 #### HEADER -------
 
-## Creates data set for firms' imputed emissions using
-# Eurostat sector-year-level data on emissions
+## Creates data set for sector-year emissions, output, value added, emission intensity
+# broken down by EUETS, non-EUETS
 
 #####################
 
@@ -32,6 +32,7 @@ library(dplyr)
   sector_emissions <- read_csv(paste0(raw_data,"/Eurostat/eurostat_emissions_by_sector_belgium.csv"))
   sector_emission_intensity <- read_csv(paste0(raw_data,"/Eurostat/eurostat_emission_intensity_by_sector_belgium.csv"))
   sector_output <- read_csv(paste0(raw_data,"/Eurostat/eurostat_output_basic_prices_by_sector_belgium.csv"))
+  sector_value_added <- read_csv(paste0(raw_data,"/Eurostat/eurostat_value_added_basic_prices_by_sector_belgium.csv"))
   load(paste0(proc_data,"/firm_year_belgian_euets.RData"))
 
 # Build data frame -----
@@ -62,10 +63,10 @@ library(dplyr)
     summarize(
       euets_output = sum(revenue, na.rm = TRUE),     
       euets_emissions = sum(emissions, na.rm = TRUE),
+      euets_value_added = sum(value_added, na.rm = TRUE),
       n_euets_firms = n(), 
       .groups = 'drop'
     )
-  
   
   sector_emissions <- sector_emissions %>%
     select(c(4,5,8,9)) %>% 
@@ -88,6 +89,13 @@ library(dplyr)
     rename(nace2d = 1, year = 2, output_eurostat = 3) %>% 
     mutate(nace2d = sub(":.*", "", nace2d))
   
+  sector_value_added <- sector_value_added %>%
+    filter(stk_flow == "TOTAL:Total") %>% 
+    select(c(5,9,10)) %>%
+    rename(nace2d = 1, year = 2, value_added_eurostat = 3) %>% 
+    mutate(nace2d = sub(":.*", "", nace2d),
+           value_added_eurostat = value_added_eurostat*10^6)
+  
   df_sectoral_emissions <- sector_emissions %>% 
     left_join(sector_emission_intensity, by = c("gas", "year", "nace2d")) %>%
     filter(gas == "CO2") %>%
@@ -95,9 +103,11 @@ library(dplyr)
     mutate(emission_intensity = emission_intensity/10^3, # express emission intensity in ton/EUR
            output = ifelse(emission_intensity == 0, NA,
                                    emissions/emission_intensity)) %>% 
-    left_join(euets_firms_by_sector, by = c("nace2d", "year")) %>% 
+    left_join(euets_firms_by_sector, by = c("nace2d", "year")) %>%
+    left_join(sector_value_added, by = c("nace2d", "year")) %>% 
     mutate(noneuets_emissions = emissions - euets_emissions,
            noneuets_output = output - euets_output,
+           noneuets_value_added = value_added_eurostat - euets_value_added,
            noneuets_emission_intensity = noneuets_emissions/noneuets_output,
            euets_emission_intensity = euets_emissions/euets_output) %>% 
     filter(!is.na(euets_output))
