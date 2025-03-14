@@ -29,9 +29,9 @@ library(dplyr)
 
 # Import data -----
 
-  sector_emissions <- read_csv(paste0(raw_data,"/Eurostat/eurostat_emissions_belgium.csv"))
-  sector_emission_intensity <- read_csv(paste0(raw_data,"/Eurostat/eurostat_emission_intensity_belgium.csv"))
-  sector_output <- read_csv(paste0(raw_data,"/Eurostat/eurostat_output_basic_prices_belgium.csv"))
+  sector_emissions <- read_csv(paste0(raw_data,"/Eurostat/eurostat_emissions_by_sector_belgium.csv"))
+  sector_emission_intensity <- read_csv(paste0(raw_data,"/Eurostat/eurostat_emission_intensity_by_sector_belgium.csv"))
+  sector_output <- read_csv(paste0(raw_data,"/Eurostat/eurostat_output_basic_prices_by_sector_belgium.csv"))
   load(paste0(proc_data,"/firm_year_belgian_euets.RData"))
 
 # Build data frame -----
