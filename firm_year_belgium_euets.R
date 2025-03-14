@@ -14,6 +14,7 @@
 # 11. total input cost
 # 12. allowance shortage
 # 13. whether firm belongs to sample from annual accounts
+# 14. value added
 
 # for all firms in Belgium treated by the EUETS
 
@@ -73,10 +74,10 @@ firm_year_belgian_euets <- firm_year_emissions %>%
   distinct() %>% 
   left_join(df_national_accounts %>%  select(vat_ano, year, 
                                              v_0022_27,turnover_VAT, v_0001023,
-                                             v_0001003, nace5d),
+                                             v_0001003, v_0009800, nace5d),
             by = c("vat_ano", "year")) %>% 
   rename(vat = vat_ano, capital = v_0022_27, revenue = turnover_VAT,
-         fte = v_0001003, wage_bill = v_0001023) %>% 
+         fte = v_0001003, wage_bill = v_0001023, value_added = v_0009800) %>% 
   mutate(emissions_prod = ifelse(revenue == 0 | emissions == 0, 0, log(revenue/emissions)),
          fte_prod = ifelse(revenue == 0 | fte == 0 , 0, log(revenue/fte)),
          labor_prod = ifelse(revenue == 0 | wage_bill == 0 , 0, log(revenue/wage_bill)),
