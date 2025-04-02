@@ -72,10 +72,6 @@ data_for_table <- df_sectoral_emissions %>%
          in_sample_value_added = total_value_added,
          n_in_sample_firms = unique_vat_ano_count)
 
-desired_order <- c("nace2d", "emissions", "euets_output", "output", 
-                   "value_added_eurostat", "figaro_value_added", 
-                   "figaro_output", "in_sample_output", "in_sample_value_added")
-
 data_for_table_2012 <- data_for_table %>%
   filter(year == 2012, !is.na(euets_output)) %>% 
   mutate(
@@ -115,17 +111,64 @@ data_for_table_2012 <- data_for_table %>%
   ) %>% 
   ungroup()
 
+data_for_table_2022 <- data_for_table %>%
+  filter(year == 2022, !is.na(euets_output)) %>% 
+  mutate(
+    across(c(4,5,7,10:13), ~ round(as.numeric(.x) / 10^9, 2)), # output and value added in bi of EUR
+    across(c("emissions", "euets_emissions"), ~ round(as.numeric(.x) / 10^3, 2)), # emissions in mi of ton
+    agg_count = "$-$",
+    sample_emissions = "$-$",
+    nace_names = case_when(
+      nace2d == "C10-C12" ~ "Food, Beverages, Tobacco",
+      nace2d == "C13-C15" ~ "Textiles, Apparel, Fur, Leather",
+      nace2d == "C16" ~ "Wood products",
+      nace2d == "C17" ~ "Paper",
+      nace2d == "C19" ~ "Coke and refined petroleum",
+      nace2d == "C20" ~ "Chemicals",
+      nace2d == "C21" ~ "Pharmaceuticals",
+      nace2d == "C22" ~ "Rubber and plastic",
+      nace2d == "C23" ~ "Non-metallic minerals",
+      nace2d == "C24" ~ "Basic metals",
+      nace2d == "C25" ~ "Fabricated metals",
+      nace2d == "C27" ~ "Electrical equipment",
+      nace2d == "C28" ~ "Machinery and equipment",
+      nace2d == "C29" ~ "Motor vehicles",
+      nace2d == "C30" ~ "Other transport equipment",
+      nace2d == "C33" ~ "Repair and installation of machinery",
+      nace2d == "D" ~ "Electricity, gas, steam, and air conditioning",
+      nace2d == "E37-E39" ~ "Sewerage and waste management",
+      nace2d == "F" ~ "Construction",
+      nace2d == "G45" ~ "Wholesale and retail trade of motor vehicles",
+      nace2d == "G46" ~ "Wholesale trade except motor vehicles",
+      nace2d == "H49" ~ "Land transport",
+      nace2d == "H52" ~ "Warehousing",
+      nace2d == "J62_J63" ~ "Computer programming",
+      nace2d == "L68A" ~ "Real estate activities",
+      nace2d == "M71" ~ "Architectural and engineering",
+      nace2d == "N80-N82" ~ "Security and investigation",
+      TRUE ~ NA
+    ) 
+  ) %>% 
+  ungroup()
+
 desired_order <- c("nace_names", "agg_count", "n_in_sample_firms", "n_euets_firms", 
                    "figaro_value_added", "in_sample_value_added", "euets_value_added", 
                    "figaro_output", "in_sample_output", "euets_output",
                    "emissions", "sample_emissions", "euets_emissions")
 
-test <- data_for_table_2012 %>%
+data_for_table_2012 <- data_for_table_2012 %>%
   select(all_of(desired_order))
 
-latex_table <- kable(test, format = "latex", booktabs = TRUE, 
-                     caption = "Table Caption Here") %>%
-  kable_styling(latex_options = "striped", full_width = F)
+latex_table_2012 <- kable(data_for_table_2012, format = "latex", booktabs = TRUE,
+                     escape = FALSE,
+                     caption = "Table Caption Here")
+
+data_for_table_2022 <- data_for_table_2022 %>%
+  select(all_of(desired_order))
+
+latex_table_2022 <- kable(data_for_table_2022, format = "latex", booktabs = TRUE,
+                          escape = FALSE,
+                          caption = "Table Caption Here")
 
 
 
