@@ -67,7 +67,9 @@ df_account <- read.csv(paste0(raw_data,"/EUTL/account.csv"))
       bvd_id = first(bvd_id),  # Include bvd_id (constant within each group)
       country_id = first(country_id),  # Include country_id (constant within each group)
       # activity_id associated with the installation with the largest verified emissions
-      activity_id = activity_id[which.max(verified)]  
+      activity_id = activity_id[which.max(verified)],
+      # nace_id associated with the installation with the largest verified emissions
+      nace_id_from_eutl = nace_id[which.max(verified)]
     ) %>%
     ungroup() %>% 
     filter(bvd_id != "")
