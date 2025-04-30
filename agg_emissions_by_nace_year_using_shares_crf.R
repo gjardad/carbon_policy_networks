@@ -38,7 +38,8 @@ agg_emissions_by_nace_year_using_shares_crf <- emissions_from_energy_by_nace_yea
   rename(emissions_from_energy = emissions) %>% 
   left_join(emissions_from_ind_process_by_nace_year, by = c("year", "nace")) %>% 
   mutate(agg_emissions = replace_na(emissions_from_energy, 0) + replace_na(emissions, 0)) %>% 
-  select(-c(emissions_from_energy, emissions))
+  select(-c(emissions_from_energy, emissions)) %>% 
+  mutate(nace = ifelse(nace == "D", "D35", nace)) # make it comparable to other datasets
 
 # save it
 # save(agg_emissions_by_nace_year_using_shares_crf, file = paste0(proc_data, "/agg_emissions_by_nace_year_using_shares_crf.RData"))
