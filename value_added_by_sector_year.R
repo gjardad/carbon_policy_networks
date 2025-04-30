@@ -47,14 +47,22 @@ nace_codes <- as.vector(unlist(read_excel(paste0(raw_data,"/FIGARO/Description_F
 
 va[,1] <- nace_codes
 
-va <- va %>%
+value_added_by_sector_year <- va %>%
   pivot_longer(
     cols = starts_with("20"),  # Select all year columns
     names_to = "year",          # Name of the new column for years
-    values_to = "value"         # Name of the new column for values
-  )
+    values_to = "value_added"         # Name of the new column for values
+  ) %>% 
+  mutate(year = as.numeric(year),
+         value_added = as.numeric(value_added),
+         nace = case_when(
+           nace == "C10T12" ~ "C10-C12",
+           nace == "C13T15" ~ "C13-C15",
+           TRUE ~ nace
+         ))
 
-save(va, file = paste0(proc_data, "/value_added_by_sector_year.RData"))
+# save it
+# save(value_added_by_sector_year, file = paste0(proc_data, "/value_added_by_sector_year.RData"))
 
 
 
