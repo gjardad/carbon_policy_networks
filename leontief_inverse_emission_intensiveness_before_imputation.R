@@ -92,7 +92,7 @@ library(Matrix)
   }
 
 # Save it -------------------
-save(psi_e_list_wout_imputation, file = paste0(proc_data,"/network_adjusted_emission_intensiveness_by_year_wout_imputation.RData"))
-save(euets_vat_ids_list, file = paste0(proc_data,"/vat_ids_and_indices_of_euets_firms.RData"))
+#save(psi_e_list_wout_imputation, file = paste0(proc_data,"/network_adjusted_emission_intensiveness_by_year_wout_imputation.RData"))
+#save(euets_vat_ids_list, file = paste0(proc_data,"/vat_ids_and_indices_of_euets_firms.RData"))
   
   
