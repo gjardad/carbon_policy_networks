@@ -31,6 +31,7 @@ library(dplyr)
 load(paste0(proc_data, "/euets_emissions_by_nace_using_installation.RData"))
 load(paste0(proc_data, "/agg_emissions_by_nace_year_using_shares_crf.RData"))
 load(paste0(proc_data, "/emissions_by_nace_group_annex_xii_2024.RData"))
+nace_label <- read_csv(paste0(raw_data, "/list_nace_codes_brief.csv"))
 
 # Create group of NACE sectors that map to Annex XII -------
 
@@ -66,264 +67,117 @@ nace_groups <- list(
   # Bind new rows back to the original dataframe
   euets_emissions_by_nace_using_installation <- bind_rows(euets_emissions_by_nace_using_installation, summed_rows)
 
-# Create graph ------
+# Create graph by sector ------
   
   df <- euets_emissions_by_nace_using_installation %>%
-    filter(year >= 2008, year <= 2022) %>% 
+    filter(year >= 2008, year <= 2022) %>%  
     mutate(emissions = emissions/10^3) %>% 
     left_join(agg_emissions_by_nace_year_using_shares_crf, by = c("nace", "year")) %>%
     mutate(ratio = emissions / agg_emissions) %>% 
-    left_join(emissions_by_nace_annex_xii_24 %>% select(nace, year, ratio_crf), by = c("nace", "year"))
+    left_join(emissions_by_nace_annex_xii_24 %>% select(nace, year, ratio_crf), by = c("nace", "year")) %>% 
+    left_join(nace_label, by = "nace")
   
-  # plot C24
-  nace_to_plot <- "C24"
+  nace_sectors <- unique(euets_emissions_by_nace_using_installation$nace)
   
-  df_plot <- df %>%
-    filter(nace == nace_to_plot)
+  for(i in seq_along(nace_sectors)) {
+    
+    sector <- nace_sectors[i]
+    
+    df_plot <- df %>%
+      filter(nace == sector)
+    
+    sector_name <- df_plot$label[[1]]
+    
+    scale_factor <- max(c(df_plot$emissions, df_plot$agg_emissions), na.rm = TRUE)
+    
+    plot <- ggplot(df_plot, aes(x = year)) +
+      geom_line(aes(y = emissions, color = "EUETS", linetype = "EUETS"), size = 1) +
+      geom_line(aes(y = agg_emissions, color = "Agg. Emissions", linetype = "Agg. Emissions"), size = 1) +
+      geom_line(aes(y = ratio * scale_factor, color = "Ratio", linetype = "Ratio"), size = 1) +
+      geom_hline(
+        data = df_plot %>% filter(!is.na(ratio_crf)),
+        aes(yintercept = ratio_crf * scale_factor, color = "Ratio in Nat. Inv.", linetype = "Ratio in Nat. Inv."),
+        size = 1
+      ) +
+      scale_y_continuous(
+        name = "Emissions",
+        sec.axis = sec_axis(~ . / scale_factor, name = "Ratio (EUETS / Aggregate)")
+      ) +
+      scale_color_manual(values = c(
+        "EUETS" = "black",
+        "Agg. Emissions" = "gray40",
+        "Ratio" = "black",
+        "Ratio in Nat. Inv." = "red"
+      )) +
+      scale_linetype_manual(values = c(
+        "EUETS" = "solid",
+        "Agg. Emissions" = "solid",
+        "Ratio" = "dotted",
+        "Ratio in Nat. Inv." = "dashed"
+      )) +
+      labs(title = paste0("Sector ", sector, ": ", sector_name), x = NULL, color = NULL, linetype = NULL) +
+      theme_minimal() +
+      theme(
+        legend.position = "bottom",
+        plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+        axis.title.y.left = element_text(margin = margin(r = 10)),
+        axis.title.y.right = element_text(margin = margin(l = 10))
+      )
+    
+    ggsave(paste0(output, "/euets_vs_agg_sector_", nace_sectors[i], ".png"), plot, width = 8, height = 6)
+  }
   
-  max_emissions <- max(df_plot$emissions, na.rm = TRUE)
+# Create graph for all of stationary installations ------
   
-  ggplot(df_plot, aes(x = year)) +
-    geom_line(aes(y = emissions, color = "EUETS", linetype = "EUETS"), size = 1) +
-    geom_line(aes(y = agg_emissions, color = "Agg. Emissions", linetype = "Agg. Emissions"), size = 1) +
-    geom_line(aes(y = ratio * max_emissions, color = "Ratio", linetype = "Ratio"), size = 1) +
+  total_euets <- euets_emissions_by_nace_using_installation %>% 
+    group_by(year) %>% 
+    summarise(total_euets_emissions = sum(emissions, na.rm=T))
+  
+  total_emissions <- agg_emissions_by_nace_year_using_shares_crf %>%
+    filter(!(str_starts(nace, "[IJKLMNQRS]") & str_length(nace) > 1)) %>% 
+    group_by(year) %>% 
+    summarise(total_stationary_emissions = sum(agg_emissions, na.rm=T)) %>% 
+    left_join(total_euets, by = "year") %>% 
+    mutate(total_euets_emissions = total_euets_emissions/10^3,
+           ratio = total_euets_emissions/total_stationary_emissions)
+  
+  scale_factor <- max(c(total_emissions$total_euets_emissions, total_emissions$total_stationary_emissions), na.rm = TRUE)
+  
+  plot <- ggplot(total_emissions, aes(x = year)) +
+    geom_line(aes(y = total_euets_emissions, color = "EUETS", linetype = "EUETS"), size = 1) +
+    geom_line(aes(y = total_stationary_emissions, color = "Agg. Emissions", linetype = "Agg. Emissions"), size = 1) +
+    geom_line(aes(y = ratio * scale_factor, color = "Ratio", linetype = "Ratio"), size = 1) +
+    #geom_hline(
+    #  data = df_plot %>% filter(!is.na(ratio_crf)),
+    #  aes(yintercept = ratio_crf * scale_factor, color = "Ratio in Nat. Inv.", linetype = "Ratio in Nat. Inv."),
+    #  size = 1
+    #) +
     scale_y_continuous(
       name = "Emissions",
-      sec.axis = sec_axis(~ . / max_emissions, name = "Ratio (EUETS / Aggregate)")
+      sec.axis = sec_axis(~ . / scale_factor, name = "Ratio (EUETS / Aggregate)")
     ) +
     scale_color_manual(values = c(
       "EUETS" = "black",
       "Agg. Emissions" = "gray40",
       "Ratio" = "black"
+      #"Ratio in Nat. Inv." = "red"
     )) +
     scale_linetype_manual(values = c(
       "EUETS" = "solid",
       "Agg. Emissions" = "solid",
       "Ratio" = "dotted"
+     # "Ratio in Nat. Inv." = "dashed"
     )) +
-    labs(x = NULL, color = NULL, linetype = NULL) +
+    labs(title = "Share of stationary emissions covered by EUETS", x = NULL, color = NULL, linetype = NULL) +
     theme_minimal() +
     theme(
       legend.position = "bottom",
-      plot.title = element_blank(),
+      plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
       axis.title.y.left = element_text(margin = margin(r = 10)),
       axis.title.y.right = element_text(margin = margin(l = 10))
     )
   
-  # plot C24-C25
-  nace_to_plot <- "C24-C25"
-  
-  df_plot <- df %>%
-    filter(nace == nace_to_plot)
-  
-  max_emissions <- max(df_plot$emissions, na.rm = TRUE)
-  
-  ggplot(df_plot, aes(x = year)) +
-    geom_line(aes(y = emissions, color = "EUETS", linetype = "EUETS"), size = 1) +
-    geom_line(aes(y = agg_emissions, color = "Agg. Emissions", linetype = "Agg. Emissions"), size = 1) +
-    geom_line(aes(y = ratio * max_emissions, color = "Ratio", linetype = "Ratio"), size = 1) +
-    # Add dashed red horizontal line with legend
-    geom_hline(
-      data = df_plot %>% filter(!is.na(ratio_crf)),
-      aes(yintercept = ratio_crf * max_emissions, color = "Ratio in Nat. Inv.", linetype = "Ratio in Nat. Inv."),
-      size = 1
-    ) +
-    scale_y_continuous(
-      name = "Emissions",
-      sec.axis = sec_axis(~ . / max_emissions, name = "Ratio (EUETS / Aggregate)")
-    ) +
-    scale_color_manual(values = c(
-      "EUETS" = "black",
-      "Agg. Emissions" = "gray40",
-      "Ratio" = "black",
-      "Ratio in Nat. Inv." = "red"
-    )) +
-    scale_linetype_manual(values = c(
-      "EUETS" = "solid",
-      "Agg. Emissions" = "solid",
-      "Ratio" = "dotted",
-      "Ratio in Nat. Inv." = "dashed"
-    )) +
-    labs(x = NULL, color = NULL, linetype = NULL) +
-    theme_minimal() +
-    theme(
-      legend.position = "bottom",
-      plot.title = element_blank(),
-      axis.title.y.left = element_text(margin = margin(r = 10)),
-      axis.title.y.right = element_text(margin = margin(l = 10))
-    )
-  
-  # plot C20-C21
-  nace_to_plot <- "C20-C21"
-  
-  df_plot <- df %>%
-    filter(nace == nace_to_plot)
-  
-  max_emissions <- max(df_plot$emissions, na.rm = TRUE)
-  
-  ggplot(df_plot, aes(x = year)) +
-    geom_line(aes(y = emissions, color = "EUETS", linetype = "EUETS"), size = 1) +
-    geom_line(aes(y = agg_emissions, color = "Agg. Emissions", linetype = "Agg. Emissions"), size = 1) +
-    geom_line(aes(y = ratio * max_emissions, color = "Ratio", linetype = "Ratio"), size = 1) +
-    # Add dashed red horizontal line with legend
-    geom_hline(
-      data = df_plot %>% filter(!is.na(ratio_crf)),
-      aes(yintercept = ratio_crf * max_emissions, color = "Ratio in Nat. Inv.", linetype = "Ratio in Nat. Inv."),
-      size = 1
-    ) +
-    scale_y_continuous(
-      name = "Emissions",
-      sec.axis = sec_axis(~ . / max_emissions, name = "Ratio (EUETS / Aggregate)")
-    ) +
-    scale_color_manual(values = c(
-      "EUETS" = "black",
-      "Agg. Emissions" = "gray40",
-      "Ratio" = "black",
-      "Ratio in Nat. Inv." = "red"
-    )) +
-    scale_linetype_manual(values = c(
-      "EUETS" = "solid",
-      "Agg. Emissions" = "solid",
-      "Ratio" = "dotted",
-      "Ratio in Nat. Inv." = "dashed"
-    )) +
-    labs(x = NULL, color = NULL, linetype = NULL) +
-    theme_minimal() +
-    theme(
-      legend.position = "bottom",
-      plot.title = element_blank(),
-      axis.title.y.left = element_text(margin = margin(r = 10)),
-      axis.title.y.right = element_text(margin = margin(l = 10))
-    )
-  
-  # plot C17-C18
-  nace_to_plot <- "C17-C18"
-  
-  df_plot <- df %>%
-    filter(nace == nace_to_plot)
-  
-  max_emissions <- max(df_plot$emissions, na.rm = TRUE)
-  
-  ggplot(df_plot, aes(x = year)) +
-    geom_line(aes(y = emissions, color = "EUETS", linetype = "EUETS"), size = 1) +
-    geom_line(aes(y = agg_emissions, color = "Agg. Emissions", linetype = "Agg. Emissions"), size = 1) +
-    geom_line(aes(y = ratio * max_emissions, color = "Ratio", linetype = "Ratio"), size = 1) +
-    # Add dashed red horizontal line with legend
-    geom_hline(
-      data = df_plot %>% filter(!is.na(ratio_crf)),
-      aes(yintercept = ratio_crf * max_emissions, color = "Ratio in Nat. Inv.", linetype = "Ratio in Nat. Inv."),
-      size = 1
-    ) +
-    scale_y_continuous(
-      name = "Emissions",
-      sec.axis = sec_axis(~ . / max_emissions, name = "Ratio (EUETS / Aggregate)")
-    ) +
-    scale_color_manual(values = c(
-      "EUETS" = "black",
-      "Agg. Emissions" = "gray40",
-      "Ratio" = "black",
-      "Ratio in Nat. Inv." = "red"
-    )) +
-    scale_linetype_manual(values = c(
-      "EUETS" = "solid",
-      "Agg. Emissions" = "solid",
-      "Ratio" = "dotted",
-      "Ratio in Nat. Inv." = "dashed"
-    )) +
-    labs(x = NULL, color = NULL, linetype = NULL) +
-    theme_minimal() +
-    theme(
-      legend.position = "bottom",
-      plot.title = element_blank(),
-      axis.title.y.left = element_text(margin = margin(r = 10)),
-      axis.title.y.right = element_text(margin = margin(l = 10))
-    )
-  
-  # plot D35
-  nace_to_plot <- "D35"
-  
-  df_plot <- df %>%
-    filter(nace == nace_to_plot)
-  
-  max_emissions <- max(df_plot$emissions, na.rm = TRUE)
-  
-  ggplot(df_plot, aes(x = year)) +
-    geom_line(aes(y = emissions, color = "EUETS", linetype = "EUETS"), size = 1) +
-    geom_line(aes(y = agg_emissions, color = "Agg. Emissions", linetype = "Agg. Emissions"), size = 1) +
-    geom_line(aes(y = ratio * max_emissions, color = "Ratio", linetype = "Ratio"), size = 1) +
-    # Add dashed red horizontal line with legend
-    geom_hline(
-      data = df_plot %>% filter(!is.na(ratio_crf)),
-      aes(yintercept = ratio_crf * max_emissions, color = "Ratio in Nat. Inv.", linetype = "Ratio in Nat. Inv."),
-      size = 1
-    ) +
-    scale_y_continuous(
-      name = "Emissions",
-      sec.axis = sec_axis(~ . / max_emissions, name = "Ratio (EUETS / Aggregate)")
-    ) +
-    scale_color_manual(values = c(
-      "EUETS" = "black",
-      "Agg. Emissions" = "gray40",
-      "Ratio" = "black",
-      "Ratio in Nat. Inv." = "red"
-    )) +
-    scale_linetype_manual(values = c(
-      "EUETS" = "solid",
-      "Agg. Emissions" = "solid",
-      "Ratio" = "dotted",
-      "Ratio in Nat. Inv." = "dashed"
-    )) +
-    labs(x = NULL, color = NULL, linetype = NULL) +
-    theme_minimal() +
-    theme(
-      legend.position = "bottom",
-      plot.title = element_blank(),
-      axis.title.y.left = element_text(margin = margin(r = 10)),
-      axis.title.y.right = element_text(margin = margin(l = 10))
-    )
-  
-  # plot B
-  nace_to_plot <- "B"
-  
-  df_plot <- df %>%
-    filter(nace == nace_to_plot)
-  
-  max_emissions <- max(df_plot$emissions, na.rm = TRUE)
-  
-  ggplot(df_plot, aes(x = year)) +
-    geom_line(aes(y = emissions, color = "EUETS", linetype = "EUETS"), size = 1) +
-    geom_line(aes(y = agg_emissions, color = "Agg. Emissions", linetype = "Agg. Emissions"), size = 1) +
-    geom_line(aes(y = ratio * max_emissions, color = "Ratio", linetype = "Ratio"), size = 1) +
-    # Add dashed red horizontal line with legend
-    geom_hline(
-      data = df_plot %>% filter(!is.na(ratio_crf)),
-      aes(yintercept = ratio_crf * max_emissions, color = "Ratio in Nat. Inv.", linetype = "Ratio in Nat. Inv."),
-      size = 1
-    ) +
-    scale_y_continuous(
-      name = "Emissions",
-      sec.axis = sec_axis(~ . / max_emissions, name = "Ratio (EUETS / Aggregate)")
-    ) +
-    scale_color_manual(values = c(
-      "EUETS" = "black",
-      "Agg. Emissions" = "gray40",
-      "Ratio" = "black",
-      "Ratio in Nat. Inv." = "red"
-    )) +
-    scale_linetype_manual(values = c(
-      "EUETS" = "solid",
-      "Agg. Emissions" = "solid",
-      "Ratio" = "dotted",
-      "Ratio in Nat. Inv." = "dashed"
-    )) +
-    labs(x = NULL, color = NULL, linetype = NULL) +
-    theme_minimal() +
-    theme(
-      legend.position = "bottom",
-      plot.title = element_blank(),
-      axis.title.y.left = element_text(margin = margin(r = 10)),
-      axis.title.y.right = element_text(margin = margin(l = 10))
-    )
+  ggsave(paste0(output, "/euets_coverage_on_aggregate.png"), plot, width = 8, height = 6)
   
   
 
