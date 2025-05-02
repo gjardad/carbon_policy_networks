@@ -30,20 +30,20 @@ code <- paste0(folder, "/carbon_policy_networks/code")
 # Libraries ----
 
 library(tidyverse)
-library(dplyr) # even though dplyr is included in tidyverse, still need to load it separately
+library(dplyr)
 
 ## Import data ------
 
-df_installation <- read.csv(paste0(raw_data,"/EUTL/installation.csv"))
+df_installation <- read.csv(paste0(raw_data,"/EUTL/Oct_2024_version/installation.csv"))
 
-df_compliance <- read.csv(paste0(raw_data,"/EUTL/compliance.csv"))
+df_compliance <- read.csv(paste0(raw_data,"/EUTL/Oct_2024_version/compliance.csv"))
 
 ## Clean data -------
 
 df_installation <- df_installation %>% 
   rename(installation_id = id) %>% 
   select(c(installation_id, country_id, activity_id, nace_id)) %>% 
-  filter(nace_id != 51.00)
+  filter(nace_id != 51.00) # exclude avitation
 
 installation_year_emissions <- df_installation %>% 
   left_join(df_compliance, by = "installation_id") %>% 
@@ -64,7 +64,10 @@ installation_year_emissions <- df_installation %>%
     activity_id == 8 ~ 32,
     activity_id == 9 ~ 35, # ambiguous: activity 9 could become 35 or 36
     TRUE ~ activity_id  # Leave unchanged if it doesn't match any condition
-  ))
+  )) %>% 
+  mutate(nace_id = ifelse(str_detect(nace_id, "^[0-9]\\."),
+                          paste0("0", nace_id),
+                          nace_id))
 
 ## Save it ------
 save(installation_year_emissions, file = paste0(proc_data,"/installation_year_emissions.RData"))
