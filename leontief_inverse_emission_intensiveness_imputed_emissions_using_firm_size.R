@@ -41,7 +41,7 @@ library(Matrix)
 
 load(paste0(proc_data,"/io_matrix_by_year.RData"))
 load(paste0(proc_data,"/vats_as_ordered_in_io_matrix.RData"))
-paste0(proc_data, "/firm_year_obs_and_imputed_emissions_using_firm_size.RData")
+load(paste0(proc_data, "/firm_year_obs_and_imputed_emissions_using_firm_size.RData"))
 load(paste0(proc_data,"/firms_total_costs_by_year.RData"))
 
 # Create column of emission intensiveness in the Leontief inverse -------
@@ -49,7 +49,7 @@ load(paste0(proc_data,"/firms_total_costs_by_year.RData"))
 # this is psi_(:,e) in my notation
 # it captures the network-adjusted emission intensity of firms
 
-psi_e_list <- list()
+psi_e_list_imputation_using_firm_size <- list()
 euets_vat_ids_list <- list()
 i <- 0
 
