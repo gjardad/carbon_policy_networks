@@ -1,7 +1,7 @@
 #### HEADER -------
 
 ## This code creates the column of network-adjusted emission intensity
-# by year for all firms in the final sample
+# by year for all firms in the final sample without imputed emissions
 
 # In the paper's notation, it creates the column psi_e for each year
 
@@ -48,7 +48,7 @@ library(Matrix)
   # this is psi_(:,e) in my notation
   # it captures the network-adjusted emission intensity of firms
     
-  psi_e_list <- list()
+  psi_e_list_wout_imputation <- list()
   euets_vat_ids_list <- list()
   i <- 0
 
@@ -87,12 +87,12 @@ library(Matrix)
       current_power <- io_matrix %*% current_power
     }
     
-    psi_e_list[[i]] <- psi_e
+    psi_e_list_wout_imputation[[i]] <- psi_e
     euets_vat_ids_list[[i]] <- euets_vat_ids
   }
 
 # Save it -------------------
-save(psi_e_list, file = paste0(proc_data,"/network_adjusted_emission_intensiveness_by_year.RData"))
+save(psi_e_list_wout_imputation, file = paste0(proc_data,"/network_adjusted_emission_intensiveness_by_year_wout_imputation.RData"))
 save(euets_vat_ids_list, file = paste0(proc_data,"/vat_ids_and_indices_of_euets_firms.RData"))
   
   
