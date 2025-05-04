@@ -105,7 +105,7 @@ emissions_from_energy_by_nace_year <- fuel_consumption_by_type_nace_year %>%
   left_join(emissions_from_energy_consumption, by = c("year", "crf_code", "fuel_type" = "fuel")) %>% 
   rename(crf_emissions = emissions) %>% 
   mutate(emissions = crf_emissions * share) %>% 
-  filter(substr(crf_code, 1, 1) == "1") %>% 
+  filter(substr(crf_code, 1, 1) == "1" | nace == "E37-E39") %>% #E37-E39 excluded otwise 
   group_by(year, nace) %>% 
   summarise(emissions = sum(emissions, na.rm=T)) %>% 
   filter(!nace %in% c("ROW_ACT", "SD_SU", "NRG_FLOW"))
