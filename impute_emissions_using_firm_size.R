@@ -91,15 +91,17 @@ working_version_agg_emissions_by_nace_year <- agg_emissions_by_nace_year_using_s
   mutate(nace = A64_code) %>% 
   left_join(working_version_agg_emissions_by_nace_year, by = c("nace", "year")) %>% 
   mutate(imputed_emissions = ifelse(is.na(obs_emissions), turnover_share * noneuets_emissions, 0)) %>% 
-  mutate(emissions = replace_na(obs_emissions, 0) + imputed_emissions)
+  mutate(emissions = replace_na(obs_emissions, 0) + imputed_emissions) %>% 
+  mutate(emissions = emissions*10^3)
+  # emissions in ton of CO2
 
 firm_year_obs_and_imputed_emissions_using_firm_size <- firm_year_balance_sheet_and_emissions_using_firm_size %>% 
   select(vat_ano, year, turnover, nace5d, obs_emissions, imputed_emissions, emissions) %>% 
   filter(year >= 2008)
 
 # save it
-#save(firm_year_obs_and_imputed_emissions_using_firm_size, file = paste0(proc_data, "/firm_year_obs_and_imputed_emissions_using_firm_size.RData"))
-#save(firm_year_balance_sheet_and_emissions_using_firm_size, file = paste0(proc_data, "/firm_year_obs_and_imputed_emissions_using_firm_size.RData"))
+save(firm_year_obs_and_imputed_emissions_using_firm_size, file = paste0(proc_data, "/firm_year_obs_and_imputed_emissions_using_firm_size.RData"))
+save(firm_year_balance_sheet_and_emissions_using_firm_size, file = paste0(proc_data, "/firm_year_obs_and_imputed_emissions_using_firm_size.RData"))
 
 
 
