@@ -65,6 +65,7 @@ crf_to_nace_crosswalk <- crf_to_nace_crosswalk %>%
   mutate(nace = strsplit(as.character(nace), ", ")) %>%
   unnest(nace) %>% 
   filter(!nace %in% c("01-99", "Br", "CS")) %>% 
+  mutate(nace = ifelse(nace == "C31_32", "C31_C32", nace)) %>% 
   distinct()
 
 # filter out "super" categories (e.g. 1.A.1.c. since we have data on 1.A.1.c.i. - 1.A.1.c.iii.)
@@ -93,14 +94,14 @@ parent_nace_crf_code <- crf_to_nace_crosswalk %>%
   # however, PEFA says they do consume fuels
   # leave them out for now - i.e. their emissions from energy consumption will be zero
 
-emissions_from_energy_by_nace_year <- fuel_consumption_by_type_nace_year %>% 
-  left_join(crf_to_nace_crosswalk, by = "nace") %>% 
+emissions_from_energy_by_nace_year <- fuel_consumption_by_type_nace_year %>%
+  left_join(crf_to_nace_crosswalk, by = "nace") %>%
+  mutate(parent_nace = substr(nace, 1, 1)) %>% 
+  left_join(parent_nace_crf_code, by = "parent_nace") %>%
+  mutate(crf_code = ifelse(is.na(crf_code), parent_crf_code, crf_code)) %>% 
   group_by(year, crf_code, fuel_type) %>%
   mutate(share = consumption / sum(consumption, na.rm = TRUE)) %>%
   ungroup() %>% 
-  mutate(parent_nace = substr(nace, 1, 1)) %>%
-  left_join(parent_nace_crf_code, by = "parent_nace") %>% 
-  mutate(crf_code = ifelse(is.na(crf_code), parent_crf_code, crf_code)) %>% 
   left_join(emissions_from_energy_consumption, by = c("year", "crf_code", "fuel_type" = "fuel")) %>% 
   rename(crf_emissions = emissions) %>% 
   mutate(emissions = crf_emissions * share) %>% 
