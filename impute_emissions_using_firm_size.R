@@ -35,12 +35,10 @@ load(paste0(proc_data, "/firm_year_balance_sheet_selected_sample.RData"))
 load(paste0(proc_data, "/firm_year_belgian_euets.RData"))
 nace_number_to_letter <- read_csv(paste0(raw_data, "/nace_codes_number_to_letter.csv"))
 
-# Clean data -----
+# NACE codes covered by EUETS in Europe -----
 
-be_installations <- installation_year_emissions %>% 
-  filter(country_id == "BE")
-
-naces_covered_by_euets <- sort(unique(installation_year_emissions$nace_id))
+nace4d_covered_by_euets <- sort(unique(installation_year_emissions$nace_id))
+nace2d_covered_by_euets <- unique(substr(nace4d_covered_by_euets, 1, 2))
 
 # Fix aggregate emissions -------
 
@@ -73,19 +71,21 @@ working_version_agg_emissions_by_nace_year <- agg_emissions_by_nace_year_using_s
 
   firm_year_balance_sheet_and_emissions_using_firm_size <- firm_year_balance_sheet_selected_sample %>%
   select(vat_ano, year, turnover, value_added, total_sales, nace5d) %>%
-  left_join(firm_year_belgian_euets %>% select(bvd_id, vat, year, emissions), by = c("vat_ano" = "vat", "year")) %>%
+  left_join(firm_year_belgian_euets %>% select(vat, year, emissions), by = c("vat_ano" = "vat", "year")) %>%
   rename(obs_emissions = emissions) %>% 
   mutate(obs_emissions = obs_emissions/10^3,
          nace2d = substr(nace5d, 1, 2),
          nace4d = paste0(substr(nace5d, 1, 2), ".", substr(nace5d, 3, 4)),
-         belongs_to_covered_nace = ifelse(nace4d %in% naces_covered_by_euets, 1, 0),
-         belongs_to_covered_nace_but_noneuets = ifelse(nace4d %in% naces_covered_by_euets & is.na(obs_emissions), 1, 0)) %>%
+         imputation_group = case_when(
+           !is.na(obs_emissions) ~ 1,
+           is.na(obs_emissions) & nace4d %in% nace4d_covered_by_euets ~ 2,
+           is.na(obs_emissions) & !nace4d %in% nace4d_covered_by_euets & nace2d %in% nace2d_covered_by_euets ~ 3,
+           is.na(obs_emissions) & !nace2d %in% nace2d_covered_by_euets ~ 4,
+           TRUE ~ NA_real_)) %>%
   group_by(year, nace2d) %>%
-  mutate(turnover_share = if_else(
-    belongs_to_covered_nace_but_noneuets == 1,
-    turnover / sum(turnover[belongs_to_covered_nace_but_noneuets == 1], na.rm = TRUE),
-    0
-  )) %>%
+  mutate(turnover_share = case_when(
+    imputation_group %in% c(1,3) ~ 0,
+    imputation_group %in% c(2,4) ~ turnover / sum(turnover[imputation_group %in% c(2,4)], na.rm = TRUE))) %>%
   ungroup() %>% 
   left_join(nace_number_to_letter, by = "nace2d") %>% 
   mutate(nace = A64_code) %>% 
@@ -94,7 +94,8 @@ working_version_agg_emissions_by_nace_year <- agg_emissions_by_nace_year_using_s
   mutate(emissions = replace_na(obs_emissions, 0) + imputed_emissions)
 
 firm_year_obs_and_imputed_emissions_using_firm_size <- firm_year_balance_sheet_and_emissions_using_firm_size %>% 
-  select(vat_ano, year, turnover, nace5d, obs_emissions, imputed_emissions, emissions)
+  select(vat_ano, year, turnover, nace5d, obs_emissions, imputed_emissions, emissions) %>% 
+  filter(year >= 2008)
 
 # save it
 #save(firm_year_obs_and_imputed_emissions_using_firm_size, file = paste0(proc_data, "/firm_year_obs_and_imputed_emissions_using_firm_size.RData"))
