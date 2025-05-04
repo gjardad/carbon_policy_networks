@@ -50,34 +50,45 @@ load(paste0(proc_data,"/firms_total_costs_by_year.RData"))
 # it captures the network-adjusted emission intensity of firms
 
 psi_e_list_imputation_using_firm_size <- list()
-euets_vat_ids_list <- list()
+pollutant_firms_vat_ids_list <- list()
 i <- 0
 
-for(y in 2005:2022){
+for(y in 2008:2020){
+  
+  # OBS: 2008-2020 period because sector-level emissions built using PEFA are only
+  # available 2008 onwards, and because for 2020 there's a big drop in EUETS coverage
+  # for sectoes C20 and C24 which for which the reasons are still unclear
   
   i <- i + 1
   
-  io_matrix <- io_matrix_list[[i]]
-  ordered_total_costs <- firms_total_costs_list[[i]]
-  firms <- vats_as_ordered_in_io_matrix[[i]]
+  io_matrix <- io_matrix_list[[i+3]]
+  ordered_total_costs <- firms_total_costs_list[[i+3]]
+  firms <- vats_as_ordered_in_io_matrix[[i+3]]
   n_firms <- nrow(io_matrix)
+  # i+3 because in io_matrix_list, firms_total_costs_list,
+  # and vats_as_ordered_in_io_matrix the first element is 2005
+  # and here first element is 2008
   
-  firm_emissions <- firm_year_belgian_euets %>% 
-    filter(year == y, in_sample == 1) %>% 
+  firm_emissions <- firm_year_balance_sheet_and_emissions_using_firm_size %>% 
+    filter(year == y) %>% 
+    rename(vat = vat_ano) %>% 
     select(vat, emissions)
   
-  index_of_pollutant_firms <- match(firm_emissions$vat, firms)
-  valid_indices <- na.omit(index_of_pollutant_firms)
+  # identify pollutant firms
+  index_of_firms_emissions <- match(firm_emissions$vat, firms)
+  valid_indices <- na.omit(index_of_firms_emissions)
   
   emissions_unordered <- firm_emissions$emissions
   
   ordered_emissions <- rep(0, n_firms)
-  ordered_emissions[valid_indices] <- emissions_unordered[!is.na(index_of_pollutant_firms)]
+  ordered_emissions[valid_indices] <- emissions_unordered[!is.na(index_of_firms_emissions)]
   
-  indices_euets_firms_w_positive_emissions <- which(ordered_emissions > 0)
-  euets_vat_ids <- data.frame(vat = firms[indices_euets_firms_w_positive_emissions],
-                              index_in_io_matrix = indices_euets_firms_w_positive_emissions)
+  indices_firms_w_positive_emissions <- which(ordered_emissions > 0)
   
+  pollutant_firms_vat_ids <- data.frame(vat = firms[indices_firms_w_positive_emissions],
+                                  index_in_io_matrix = indices_firms_w_positive_emissions)
+  
+  # build psi_e
   emission_intensiveness <- ordered_emissions/ordered_total_costs
   
   psi_e <- emission_intensiveness
@@ -88,12 +99,12 @@ for(y in 2005:2022){
     current_power <- io_matrix %*% current_power
   }
   
-  psi_e_list[[i]] <- psi_e
-  euets_vat_ids_list[[i]] <- euets_vat_ids
+  psi_e_list_imputation_using_firm_size[[i]] <- psi_e
+  pollutant_firms_vat_ids_list[[i]] <- pollutant_firms_vat_ids
 }
 
 # Save it -------------------
-save(psi_e_list, file = paste0(proc_data,"/network_adjusted_emission_intensiveness_by_year.RData"))
-save(euets_vat_ids_list, file = paste0(proc_data,"/vat_ids_and_indices_of_euets_firms.RData"))
+#save(psi_e_list_imputation_using_firm_size, file = paste0(proc_data,"/network_adjusted_emission_intensiveness_by_year.RData"))
+#save(pollutant_firms_vat_ids_list, file = paste0(proc_data,"/vat_ids_and_indices_of_pollutant_firms_using_firm_size_imputation.RData"))
 
 
