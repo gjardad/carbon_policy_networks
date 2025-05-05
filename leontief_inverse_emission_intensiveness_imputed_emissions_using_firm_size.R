@@ -104,7 +104,7 @@ for(y in 2008:2020){
 }
 
 # Save it -------------------
-#save(psi_e_list_imputation_using_firm_size, file = paste0(proc_data,"/network_adjusted_emission_intensiveness_by_year.RData"))
+#save(psi_e_list_imputation_using_firm_size, file = paste0(proc_data,"/ntw_adj_emission_intensiveness_by_year_imputation_using_firm_size.RData"))
 #save(pollutant_firms_vat_ids_list, file = paste0(proc_data,"/vat_ids_and_indices_of_pollutant_firms_using_firm_size_imputation.RData"))
 
 
