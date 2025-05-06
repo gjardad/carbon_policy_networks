@@ -36,7 +36,7 @@ load(paste0(proc_data,"/vats_as_ordered_in_io_matrix.RData"))
 # Generate vector of Domar weights ------
 
 i <- 0
-ordered_domar_weights <- list()
+ordered_domar_weights_list <- list()
 
 for(y in 2005:2022){
   
@@ -56,9 +56,9 @@ for(y in 2005:2022){
     mutate(domar_weights = turnover / gdp) %>%
     select(vat_ano, domar_weights)
   
-  ordered_domar_weights[[i]] <- df_domar_weights$domar_weights[match(firms_ids, df_domar_weights$vat_ano)]
+  ordered_domar_weights_list[[i]] <- df_domar_weights$domar_weights[match(firms_ids, df_domar_weights$vat_ano)]
   
 }
 
 # save it
-# save(ordered_domar_weights, file = paste0(proc_data, "/ordered_domar_weights_by_year.RData"))
+# save(ordered_domar_weights_list, file = paste0(proc_data, "/ordered_domar_weights_by_year.RData"))
