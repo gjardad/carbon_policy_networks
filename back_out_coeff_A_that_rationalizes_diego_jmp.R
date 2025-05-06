@@ -34,9 +34,9 @@ library(Matrix)
 load(paste0(proc_data,"/dlogpz_shocks_that_imply_hicp_energy_increases_in_diego_jmp.RData"))
 load(paste0(proc_data, "/firm_year_obs_and_imputed_emissions_using_firm_size.RData"))
 load(paste0(proc_data,"/firms_total_costs_by_year.RData"))
-load(paste0(proc_data, "/firm_year_balance_sheet_selected_sample.RData"))
 load(paste0(proc_data,"/vat_ids_and_indices_of_euets_firms.RData"))
 load(paste0(proc_data,"/vats_as_ordered_in_io_matrix.RData"))
+load(paste0(proc_data, "/ordered_domar_weights_by_year.RData"))
 
 # Compute d log A -----
 
@@ -46,23 +46,9 @@ for(y in 2005:2022){
   
   i <- i + 1
   
-  # step 1: compute GDP in sample
   firms_ids <- vats_as_ordered_in_io_matrix[[i]]
   
-  gdp <- firm_year_balance_sheet_selected_sample %>%
-    filter(year == y, vat_ano %in% firms_ids) %>% 
-    group_by(year) %>% 
-    summarise(gdp = sum(sales_final_demand, na.rm=T)) %>% 
-    ungroup()
-  
-  # step 2: compute vector of Domar weights
-  df_domar_weights <- firm_year_balance_sheet_and_emissions_using_firm_size %>%
-    filter(year == y, vat_ano %in% firms_ids) %>% 
-    mutate(gdp = gdp[1,2][[1]]) %>% 
-    mutate(domar_weights = turnover/gdp) %>% 
-    select(vat_ano, domar_weights)
-  
-  ordered_domar_weights <- df_domar_weights$domar_weights[match(firms_ids, df_domar_weights$vat_ano)]
+  ordered_domar_weights <- ordered_domar_weights_list[[i]]
   
   # step 3: compute emission intensiveness
   firm_emissions <- firm_year_balance_sheet_and_emissions_using_firm_size %>% 
