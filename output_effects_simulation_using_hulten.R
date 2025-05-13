@@ -39,6 +39,7 @@ load(paste0(proc_data,"/vats_as_ordered_in_io_matrix.RData"))
 # Compute output effects as in Hulten Theorem ------
 
   # choose targeting vector; this needs to be list of VATs of targeted firms
+  targeted_vat_ids <- c()
 
   dlogY_list <- list()
   dlogY_list[[1]] <- 0

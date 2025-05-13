@@ -100,8 +100,8 @@ firm_year_obs_and_imputed_emissions_using_firm_size <- firm_year_balance_sheet_a
   filter(year >= 2008)
 
 # save it
-save(firm_year_obs_and_imputed_emissions_using_firm_size, file = paste0(proc_data, "/firm_year_obs_and_imputed_emissions_using_firm_size.RData"))
-save(firm_year_balance_sheet_and_emissions_using_firm_size, file = paste0(proc_data, "/firm_year_obs_and_imputed_emissions_using_firm_size.RData"))
+#save(firm_year_obs_and_imputed_emissions_using_firm_size, file = paste0(proc_data, "/firm_year_obs_and_imputed_emissions_using_firm_size.RData"))
+#save(firm_year_balance_sheet_and_emissions_using_firm_size, file = paste0(proc_data, "/firm_year_obs_and_imputed_emissions_using_firm_size.RData"))
 
 
 
