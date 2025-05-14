@@ -2,30 +2,38 @@
 
 ## Create data set with descriptive statistics from prodcom data
 
-# Obs: I ended up not using this code and instead migrated to Stata
+# Code meant to be ran within Stata
 
 #####################
 
-## Setup ------
+## Setup -----
 rm(list = ls())
 
-if(Sys.info()[["user"]] =="JARDANG"){
-  folder <- "X:/Documents/JARDANG" 
-}
+## Recover globals defined in Stata -------
 
-raw_data <- paste0(folder, "/carbon_policy_networks/data/raw")
+  # Capture command-line arguments
+  args <- commandArgs(trailingOnly = TRUE)
+  
+  # Assign the first argument to jarda_folder
+  jarda_folder <- args[1]
+  
+  gert_folder <- args[2]
 
-int_data <- paste0(folder, "/carbon_policy_networks/data/intermediate")
+## Setup file paths -----
 
-proc_data <- paste0(folder, "/carbon_policy_networks/data/processed")
+raw_data <- paste0(jarda_folder, "/carbon_policy_networks/data/raw")
 
-output <- paste0(folder, "/carbon_policy_networks/output")
+int_data <- paste0(jarda_folder, "/carbon_policy_networks/data/intermediate")
 
-code <- paste0(folder, "/carbon_policy_networks/code")
+proc_data <- paste0(jarda_folder, "/carbon_policy_networks/data/processed")
 
-# gert_folder <- TO BE ADDED
+output <- paste0(jarda_folder, "/carbon_policy_networks/output")
+
+code <- paste0(jarda_folder, "/carbon_policy_networks/code")
 
 # Libraries ----
+
+.libPaths("E:/Documents/JARDANG/r_packages/win-library/4.2.1")
 
 library(tidyverse)
 library(dplyr)

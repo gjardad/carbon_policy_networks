@@ -2,30 +2,40 @@
 
 ## Save prodcom data as RData
 
-# Obs: I ended up never using this code and instead migrated to Stata to deal with prodcom regressions
+# This code is meant to be ran within Stata
 
 #####################
 
-## Setup ------
+## Setup -----
 rm(list = ls())
 
-if(Sys.info()[["user"]] =="JARDANG"){
-  folder <- "X:/Documents/JARDANG" 
-}
+## Recover globals defined in Stata -------
 
-raw_data <- paste0(folder, "/carbon_policy_networks/data/raw")
+  # Capture command-line arguments
+  args <- commandArgs(trailingOnly = TRUE)
+  
+  # Assign the first argument to jarda_folder
+  jarda_folder <- args[1]
+  
+  gert_folder <- args[2]
+  
+  prodcom_file <- args[3]
 
-int_data <- paste0(folder, "/carbon_policy_networks/data/intermediate")
+## Setup file paths -----
+  
+raw_data <- paste0(jarda_folder, "/carbon_policy_networks/data/raw")
 
-proc_data <- paste0(folder, "/carbon_policy_networks/data/processed")
+int_data <- paste0(jarda_folder, "/carbon_policy_networks/data/intermediate")
 
-output <- paste0(folder, "/carbon_policy_networks/output")
+proc_data <- paste0(jarda_folder, "/carbon_policy_networks/data/processed")
 
-code <- paste0(folder, "/carbon_policy_networks/code")
+output <- paste0(jarda_folder, "/carbon_policy_networks/output")
 
-# gert_folder <- TO BE ADDED
+code <- paste0(jarda_folder, "/carbon_policy_networks/code")
 
 # Libraries ----
+
+.libPaths("E:/Documents/JARDANG/r_packages/win-library/4.2.1")
 
 library(tidyverse)
 library(dplyr)
@@ -33,7 +43,7 @@ library(dplyr)
 # Import data -------
 
 library(haven)
-#prodcom <- read_dta(paste0(gert_folder,"/ADD NAME OF PRODCOM FILE IN YOUR FOLDER.dta"))
+prodcom <- read_dta(paste0(gert_folder, "/", prodcom_file))
 prodcom <- prodcom %>% 
   rename(vat_ano = 1) %>% 
   mutate(vat_ano = as.character(vat_ano))
