@@ -1,6 +1,8 @@
 #### HEADER -------
 
-## Create data set with descriptive statistics on prodcom data
+## Create data set with descriptive statistics from prodcom data
+
+# Obs: I ended up not using this code and instead migrated to Stata
 
 #####################
 
@@ -88,7 +90,7 @@ load(paste0(gert_folder,"/firm_product_month_prodcom.RData"))
     mutate(price_index_level = cumprod(price_index)) %>%
     ungroup()
   
-  save(price_index_nace4d_prodcom, file = paste0(proc_data,"/price_index_nace4d_prodcom.RData"))
+  save(price_index_nace4d_prodcom, file = paste0(gert_folder,"/price_index_nace4d_prodcom.RData"))
 
 # Version with mock prodcom ---------
 

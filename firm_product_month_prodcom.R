@@ -2,6 +2,8 @@
 
 ## Create data set with info on firm-product-month prices, NACE, and EUETS treatment
 
+# Obs: I ended up not using this code and instead migrated to Stata
+
 #####################
 
 ## Setup ------

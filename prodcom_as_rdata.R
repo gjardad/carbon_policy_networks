@@ -2,6 +2,8 @@
 
 ## Save prodcom data as RData
 
+# Obs: I ended up never using this code and instead migrated to Stata to deal with prodcom regressions
+
 #####################
 
 ## Setup ------
