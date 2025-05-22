@@ -20,6 +20,8 @@ rm(list = ls())
   gert_folder <- args[2]
   
   prodcom_file <- args[3]
+  
+  prodcom_output <- args[4]
 
 ## Setup file paths -----
   
@@ -49,7 +51,7 @@ prodcom <- prodcom %>%
   mutate(vat_ano = as.character(vat_ano))
 
 # Save it ----
-save(prodcom, file = paste0(gert_folder,"/prodcom.RData"))
+save(prodcom, file = paste0(prodcom_output, "/prodcom.RData"))
 
 # Version with mock prodcom ---------
 

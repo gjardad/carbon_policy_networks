@@ -18,6 +18,8 @@ rm(list = ls())
   jarda_folder <- args[1]
   
   gert_folder <- args[2]
+  
+  prodcom_output <- args[3]
 
 ## Setup file paths -----
 
@@ -98,7 +100,7 @@ load(paste0(gert_folder,"/firm_product_month_prodcom.RData"))
     mutate(price_index_level = cumprod(price_index)) %>%
     ungroup()
   
-  save(price_index_nace4d_prodcom, file = paste0(gert_folder,"/price_index_nace4d_prodcom.RData"))
+  save(price_index_nace4d_prodcom, file = paste0(prodcom_output,"/price_index_nace4d_prodcom.RData"))
 
 # Version with mock prodcom ---------
 

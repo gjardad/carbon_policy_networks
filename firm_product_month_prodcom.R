@@ -18,6 +18,8 @@ rm(list = ls())
   jarda_folder <- args[1]
   
   gert_folder <- args[2]
+  
+  prodcom_output <- args[3]
 
 ## Setup file paths -----
 
@@ -41,7 +43,7 @@ library(lubridate)
 
 # Import data -------
 
-load(paste0(gert_folder,"/prodcom.RData"))
+load(paste0(prodcom_output,"/prodcom.RData"))
 load(paste0(proc_data, "/df_national_accounts_with_5digits.RData"))
 load(paste0(proc_data, "/firm_year_belgian_euets.RData"))
 
@@ -84,7 +86,7 @@ firm_product_month_prodcom <- prodcom %>%
   ungroup()
 
 # save it 
-save(firm_product_month_prodcom, file = paste0(gert_folder,"/firm_product_month_prodcom.RData"))
+save(firm_product_month_prodcom, file = paste0(prodcom_output,"/firm_product_month_prodcom.RData"))
 
 # Version with mock prodcom ---------
 
