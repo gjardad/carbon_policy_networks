@@ -34,11 +34,15 @@ load(paste0(proc_data,"/cpc_v2_to_cpa_v21.RData"))
 
 # Create data set ------
 
-cpa_v21_codes_of_klenow_goods <- cpc_v2_codes_of_klenow_goods %>% 
-  left_join(cpc_v2_to_cpa_v21, by = "cpc_v2_code") %>% 
+cpa_v21_codes_of_klenow_goods_with_description <- cpc_v2_codes_of_klenow_goods %>% 
+  left_join(cpc_v2_to_cpa_v21, by = "cpc_v2_code")
+
+cpa_v21_codes_of_klenow_goods <- cpa_v21_codes_of_klenow_goods_with_description %>% 
+  select(cpa_v21_code) %>% 
   distinct()
 
 # Save it -------
+save(cpa_v21_codes_of_klenow_goods_with_description, file = paste0(proc_data,"/cpa_v21_codes_of_klenow_goods_with_description.RData"))  
 save(cpa_v21_codes_of_klenow_goods, file = paste0(proc_data,"/cpa_v21_codes_of_klenow_goods.RData"))  
 
 library(haven)  
