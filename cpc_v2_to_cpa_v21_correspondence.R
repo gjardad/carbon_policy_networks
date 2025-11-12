@@ -1,7 +1,8 @@
 #### HEADER -------
 
-## This code creates data set at the firm-year level with info on
-#  
+## This code creates correspondence between CPC v.2 and CPA v.2.1
+
+# It is based on cross-walk made available here: https://unstats.un.org/unsd/classifications/Econ?
 
 #####################
 
