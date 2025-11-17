@@ -2,6 +2,8 @@
 
 ## This code identifies the HS codes for fossil fuel goods
 
+# It is taken directly from HS chapter 27
+
 #####################
 
 # Setup ------
@@ -31,7 +33,7 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
 # directly pulled from HS dictionaries
 library(tibble)
 hs_codes_for_fossil_fuels <- tribble(
-  ~hs_code, ~description, ~state,
+  ~hs_code, ~hs_description, ~state,
   # --- Solid fossil fuels ---
   "270111", "Anthracite", "solid",
   "270112", "Bituminous coal", "solid",
