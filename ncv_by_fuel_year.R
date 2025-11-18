@@ -136,7 +136,7 @@ ncv_by_fuel_siec_year <- read_csv(paste0(raw_data, "/Eurostat/ncv_by_fuel_year.c
       by = "siec_code"
     )
   
-  # If HS doce is associtaed with two or more SIEC codes,
+  # If HS code is associated with two or more SIEC codes,
   # and one of them has NCV imputed from IRES, drop that one
   hs_siec_ncv <- hs_siec_ncv %>%
     group_by(hs_code, year) %>%
