@@ -38,20 +38,19 @@ hs_to_siec_map <- tribble(
   # 0 — COAL
   # -----------------------------
   "270111", "0110", "Anthracite",
-  "270119", "0121", "Coking coal",
   "270112", "0129", "Other bituminous coal",
+  "270119", "0121", "Coking coal",
+  "270120", "0320", "Patent fuel",
   
   "270210", "0210", "Sub-bituminous coal",
   "270210", "0220", "Lignite",
+
+  "270220", "0330", "Brown coal briquettes (BKB)",
   
   "2704",    "0311", "Coke oven coke",
   "2704",    "0312", "Gas coke",
   "2704",    "0313", "Coke breeze",
   "2704",    "0314", "Semi-cokes",
-  
-  "270120", "0320", "Patent fuel",
-  
-  "270220", "0330", "Brown coal briquettes (BKB)",
   
   "2706",    "0340", "Coal tar",
   
@@ -76,6 +75,9 @@ hs_to_siec_map <- tribble(
   "2703",    "1210", "Peat briquettes",
   
   "2703",    "1290", "Other peat products",
+  
+  ## for simplicity, I assume 1290 is only matched with 2703 when comparing
+  # customs and eurostat data -------
   "2704",    "1290", "Other peat products",
   "2706",    "1290", "Other peat products",
   "271290", "1290", "Other peat products",
@@ -175,6 +177,9 @@ hs_to_siec_map <- tribble(
   
   "271020", "4699", "Other oil products n.e.c."
 )
+
+  # is the SIEC code present in Eurostat data?
+  load(paste0(int_data,"/unique_siec_eurostat_energy_balance_belgium.RData"))
 
 # Save it ------
 save(hs_to_siec_map, file = paste0(proc_data,"/hs_to_siec_map.RData"))
