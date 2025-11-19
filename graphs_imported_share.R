@@ -79,10 +79,10 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
   filter(year >= 2005,
          # exclude SIEC codes that represent umbrella categories or
          # fuels that are not used to generate GHG in stationary industrial installations
-         !siec_code %in% c("7000", "8000", "900H", "E", "0000X0350-0370",
-                           "0350-0370", "1000", "4000XBIO", "5110-5150",
-                           "5210B", "5210P", "5220B", "5220P", "5230P", "5230B",
-                           "5290", "5300"))
+         !siec_fullcode %in% c("E7000", "H8000", "FE", "C0000X0350-0370",
+                               "C0350-0370", "P1000", "O4000XBIO", "R5110-5150",
+                               "R5210B", "R5210P", "R5220B", "R5220P", "R5230P",
+                               "R5230B", "R5290", "R5300"))
 
 # Generate graphs --------
   
