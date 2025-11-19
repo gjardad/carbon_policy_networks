@@ -135,6 +135,8 @@ hs_codes_for_fossil_fuels <- tribble(
 )
 
 
+
 # Save it ------
+#save(hs_codes_for_fossil_fuels, file = paste0(proc_data,"/hs_codes_for_fossil_fuels.RData"))
 save(cn8digit_codes_for_fossil_fuels, file = paste0(proc_data,"/cn8digit_codes_for_fossil_fuels.RData"))
 
