@@ -1,0 +1,104 @@
+#### HEADER -------
+
+## This code identifies importers of fuels into Belgium
+
+#####################
+
+# Setup ------
+rm(list = ls())
+
+if(tolower(Sys.info()[["user"]]) == "jardang"){
+  folder <- "X:/Documents/JARDANG" 
+}
+
+raw_data <- paste0(folder, "/carbon_policy_networks/data/raw")
+
+int_data <- paste0(folder, "/carbon_policy_networks/data/intermediate")
+
+proc_data <- paste0(folder, "/carbon_policy_networks/data/processed")
+
+output <- paste0(folder, "/carbon_policy_networks/output")
+
+code <- paste0(folder, "/carbon_policy_networks/code")
+
+# Libraries ----
+
+library(tidyverse)
+library(dplyr) # even though dplyr is included in tidyverse, still need to load it separately
+
+# Import and data --------
+
+load(paste0(proc_data,"/df_trade.RData"))
+load(paste0(proc_data,"/cn8digit_codes_for_fossil_fuels.RData"))
+
+# Calculate for each firm amount of fuel imported and share of imports that are fuels -----
+
+  df_total_imports <- df_trade %>%
+    filter(flow == "I") %>%        # imports only
+    group_by(vat_ano, year) %>%
+    summarise(
+      total_imports_value_all = sum(cn_value, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  df_fuel_trade <- df_trade %>%
+    inner_join(cn8digit_codes_for_fossil_fuels, by = c("cncode" = "cn_code"))
+
+  df_fuel_stats <- df_fuel_trade %>%
+    group_by(vat_ano, year, cncode) %>%
+    summarise(
+      # ---- Weight ----
+      imports_weight = sum(cn_weight[flow == "I"], na.rm = TRUE),
+      exports_weight = sum(cn_weight[flow == "X"], na.rm = TRUE),
+      
+      # ---- Value ----
+      imports_value  = sum(cn_value[flow == "I"], na.rm = TRUE),
+      exports_value  = sum(cn_value[flow == "X"], na.rm = TRUE),
+      
+      # ---- Units ----
+      imports_units  = sum(cn_units[flow == "I"], na.rm = TRUE),
+      exports_units  = sum(cn_units[flow == "X"], na.rm = TRUE),
+      
+      .groups = "drop"
+    )
+  
+  eps <- 1e-12
+  
+  df_firm_year_fuel <- df_fuel_stats %>%
+    left_join(df_total_imports, by = c("vat_ano", "year")) %>%
+    mutate(
+      fuel_share_of_imports = if_else(
+        total_imports_value_all > 0,
+        100 * imports_value / total_imports_value_all,
+        NA_real_
+      )
+    ) %>% 
+    group_by(vat_ano, year) %>% 
+    mutate(
+      fuel_importer = if_else(
+        any(imports_weight > eps |
+            imports_value  > eps |
+            imports_units  > eps),
+        1L, 0L
+      )
+    )
+  
+# Include variable that identifies EUETS firms -------
+  
+  load(paste0(proc_data, "/firm_year_belgian_euets.RData"))
+  firm_year_belgian_euets$is_euets <- 1
+  # this NACE5d code comes from national accounts and therefore is at the firm level;
+  # it's not the NACE codes of the installations
+  
+  fuel_imported_by_firm_year <- df_firm_year_fuel %>% 
+    left_join(firm_year_belgian_euets %>% select(vat, year, nace5d, in_sample, is_euets),
+              by = c("year", "vat_ano" = "vat")) %>% 
+    mutate(is_euets = if_else(is.na(is_euets), 0, is_euets),
+           in_sample = if_else(is.na(in_sample), 0, in_sample))
+  
+# Save it ------
+save(fuel_imported_by_firm_year, file = paste0(proc_data,"/fuel_imported_by_firm_year.RData"))
+  
+  
+  
+  
