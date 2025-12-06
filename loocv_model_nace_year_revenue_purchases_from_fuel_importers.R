@@ -248,5 +248,7 @@ code <- paste0(folder, "/carbon_policy_networks/code")
   perf_comparison
   
 # Save it ----------
+df_training_data <- df_no_singletons
+save(df_training_data, file = paste0(proc_data, "/df_used_to_train_model_to_infer_emissions.RData"))
 save(df_lofo, file = paste0(int_data, "/results_from_loocv_model_nace_year_revenue_purchases_from_fuel_importers.RData"))
   
