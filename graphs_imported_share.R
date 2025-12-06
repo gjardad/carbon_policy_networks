@@ -49,7 +49,7 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
         TRUE                           ~ flow
       )
     ) %>%
-    select(siec_code, year, flow, energy_balance_value) %>%
+    select(siec_code, year, flow, energy_balance_value, siec_fullcode) %>%
     
     # make it wide by siec_code × year
     pivot_wider(
@@ -80,7 +80,7 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
          # exclude SIEC codes that represent umbrella categories or
          # fuels that are not used to generate GHG in stationary industrial installations
          !siec_fullcode %in% c("E7000", "H8000", "FE", "C0000X0350-0370",
-                               "C0350-0370", "P1000", "O4000XBIO", "R5110-5150",
+                               "C0350-0370", "P1000", "O4000XBIO", "R5110-5150_W6000RI",
                                "R5210B", "R5210P", "R5220B", "R5220P", "R5230P",
                                "R5230B", "R5290", "R5300"))
 
@@ -100,6 +100,17 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
     theme_classic() +
     theme(
       axis.text  = element_blank(),
+      
+      # Larger axis titles
+      axis.title = element_text(size = 22),
+      
+      # Increase spacing between axis titles and axes
+      axis.title.x = element_text(
+        margin = margin(t = 12)   # 12 pts below x axis
+      ),
+      axis.title.y = element_text(
+        margin = margin(r = 12)   # 12 pts to the left of y axis
+      )
     )
   
   print(p_import_share_of_supply)
@@ -109,15 +120,24 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
     ggplot(aes(x = I, y = X)) +
     geom_point(alpha = 0.6, color = "blue") +
     geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
-    #facet_wrap(~ siec_code, scales = "free") +
     labs(
       x = "Imports",
       y = "Exports"
-      #title = "For some fuels, imports ≈ exports → re-export hub"
     ) +
     theme_classic() +
     theme(
-      axis.text  = element_blank(),
+      axis.text = element_blank(),
+      
+      # Larger axis titles
+      axis.title = element_text(size = 16),
+      
+      # Increase spacing between axis titles and axes
+      axis.title.x = element_text(
+        margin = margin(t = 12)   # 12 pts below x axis
+      ),
+      axis.title.y = element_text(
+        margin = margin(r = 12)   # 12 pts to the left of y axis
+      )
     )
   
   print(p_reexport) 
