@@ -117,7 +117,7 @@ code <- paste0(folder, "/carbon_policy_networks/code")
       
       # FEs + fuel consumption from non-EUETS importers
       model_log_fuel_non_euets <- lm(
-        log(emissions) ~ year + nace5d + log(amount_spent_on_fuel_from_non_euets_importers),
+        log(emissions) ~ year + nace5d + log(amount_spent_on_fuel_excl_euets_importers),
         data = train_data
       )
       smearing_factor <- mean(exp(residuals(model_log_fuel)), na.rm = TRUE)
@@ -135,7 +135,7 @@ code <- paste0(folder, "/carbon_policy_networks/code")
       
       # FEs + revenue + fuel consumption from non-EUETS importers
       model_log_rev_fuel_non_euets <- lm(
-        log(emissions) ~ year + nace5d + log(revenue) + log(amount_spent_on_fuel_from_non_euets_importers),
+        log(emissions) ~ year + nace5d + log(revenue) + log(amount_spent_on_fuel_excl_euets_importers),
         data = train_data
       )
       smearing_factor <- mean(exp(residuals(model_log_rev_fuel_non_euets)), na.rm = TRUE)
