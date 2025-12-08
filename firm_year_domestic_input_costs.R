@@ -38,5 +38,6 @@ firm_year_domestic_input_cost <- df_b2b %>%
   summarize(input_cost = sum(corr_sales_ij, na.rm = TRUE)) %>% 
   rename(vat = vat_j_ano)
 
-save(firm_year_input_cost, file = paste0(proc_data,"/firm_year_domestic_input_cost.RData"))  
+# Save it -----
+save(firm_year_domestic_input_cost, file = paste0(proc_data,"/firm_year_domestic_input_cost.RData"))  
 
