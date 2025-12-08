@@ -108,53 +108,56 @@ library(ggplot2)
   plot_data <- plot_data %>% filter(metric != "Spacing spacer")
   
 ## 3. Plot: two regions on x-axis, 0–1 on y-axis -----------------------------
+
+  library(scales)  
   
   fuel_plot <- ggplot(plot_data, aes(x = euets, y = value, fill = euets)) +
     geom_col(width = 0.6) +
     geom_text(
-      aes(label = sprintf("%.2f", value)),
+      aes(label = sprintf("%.2f%%", value * 100)),
       vjust = -0.3,
-      size = 3
+      size = 4
     ) +
     facet_grid(~ metric, switch = "x") +
     scale_y_continuous(
       limits = c(0, 1.05),
-      breaks = seq(0, 1, by = 0.2)
+      breaks = seq(0, 1, by = 0.2),
+      labels = percent_format(accuracy = 1)   # y-axis ticks: 0%, 20%, ..., 100%
     ) +
+    
     scale_fill_manual(
       values = c("EUETS" = "lightblue", "non-EUETS" = "grey70"),
-      name   = NULL
+      name = NULL
     ) +
+    
     labs(x = NULL, y = NULL) +
-    theme_minimal(base_size = 12) +
+    
+    theme_minimal(base_size = 16) +
+    
     theme(
-      legend.position = "right",
+      legend.position = "bottom",
+      legend.text = element_text(size = 16),
       
-      # ----- REMOVE X-AXIS TEXT BELOW BARS -----
       axis.text.x = element_blank(),
       axis.ticks.x = element_blank(),
       
-      # ----- GRID LINES: HORIZONTAL ONLY -----
+      axis.text.y = element_text(size = 16),
+      
       panel.grid.major.x = element_blank(),
       panel.grid.minor.x = element_blank(),
       panel.grid.major.y = element_line(color = "grey80", linewidth = 0.4),
       panel.grid.minor.y = element_blank(),
       
-      # ----- REMOVE GAP BETWEEN PANELS -----
       panel.spacing.x = unit(0, "lines"),
       
-      # ----- REDUCE DISTANCE BETWEEN X-AXIS & FACET LABELS -----
       strip.placement = "outside",
       strip.background = element_blank(),
-      strip.text.x = element_text(margin = margin(t = 2, b = 2)),  # reduce space
+      strip.text.x = element_text(size = 18, margin = margin(t = 2, b = 2)),
       
-      plot.background = element_rect(fill = "white", color = NA),
-      
-      axis.text.y = element_text(size = 11)
+      plot.background = element_rect(fill = "white", color = NA)
     )
+  
   
 # Save it --------------
 ggsave(paste0(output, "/fuel_consumption_by_euets_status.png"), fuel_plot, width = 8, height = 5, dpi = 300)
-  
-  
   
