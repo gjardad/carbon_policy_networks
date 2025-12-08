@@ -115,6 +115,9 @@ library(dplyr) # even though dplyr is included in tidyverse, still need to load 
   
   print(p_import_share_of_supply)
   
+  # save it
+  ggsave(paste0(output, "/total_supply_vs_imports.png"), p_import_share_of_supply, width = 8, height = 5, dpi = 300)
+  
   ### Scatterplot of X vs I for each fuel-year
   p_reexport <- energy_balance_wide %>%
     ggplot(aes(x = I, y = X)) +
