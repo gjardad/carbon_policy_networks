@@ -36,7 +36,6 @@ code <- paste0(folder, "/carbon_policy_networks/code")
     left_join(firm_year_belgian_euets %>% select(vat, year, revenue),
               by = c("vat_j_ano" = "vat", "year")
     ) %>%
-    mutate(amount_spent_on_fuel_from_non_euets_importers = amount_spent_on_fuel - purchases_from_importers_euets) %>% 
     filter(emissions > 0,
            !is.na(amount_spent_on_fuel)) %>%
     mutate(
