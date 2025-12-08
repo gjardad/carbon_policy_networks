@@ -1,8 +1,9 @@
 #### HEADER -------
 
-## This code generates plots that help understand why LOOCV with
-## revenues + fuel_from_non_EUETS vs fuel_from_non_EUETS-only
-## performs differently across metrics.
+## This code generates plots that help understand why comparison between models
+## revenues + fuel vs fuel-only
+## is ambiguous in LOOCV: some measures suggest first is better, other measurements
+# suggest second is better.
 
 #####################
 
