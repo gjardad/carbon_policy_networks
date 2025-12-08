@@ -141,7 +141,7 @@ code <- paste0(folder, "/carbon_policy_networks/code")
   
   # Create amount spent on fuel excluding purchases from EUETS fuel importers
   amount_spent_on_fuel_by_firm_year <- amount_spent_on_fuel_by_firm_year %>%
-    mutate(amount_spent_on_fuel_from_non_euets_importers = amount_spent_on_fuel - purchases_from_importers_euets)
+    mutate(amount_spent_on_fuel_excl_euets_importers = amount_spent_on_fuel - purchases_from_importers_euets)
   
 # Save it -----
 save(amount_spent_on_fuel_by_firm_year, file = paste0(proc_data, "/amount_spent_on_fuel_by_firm_year.RData"))
