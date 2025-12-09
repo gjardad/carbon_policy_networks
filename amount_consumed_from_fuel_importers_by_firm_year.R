@@ -57,6 +57,8 @@ code <- paste0(folder, "/carbon_policy_networks/code")
               .groups = "drop")
 
 ### Tag buyers (vat_j_ano) with importer_in_euets -------
+  
+  library(tidyr)
 
   buyers_status <- fuel_importers %>%
     mutate(
@@ -65,7 +67,7 @@ code <- paste0(folder, "/carbon_policy_networks/code")
         as.integer(fuel_importer == 1 & is_in_euets_list)
     ) %>%
     mutate(
-      is_importer_in_euets = replace_na(is_importer_in_euets, 0)
+      is_importer_in_euets = tidyr::replace_na(is_importer_in_euets, 0)
     ) %>%
     select(vat_j_ano = vat, year, is_importer_in_euets, imports_value)
   
@@ -92,7 +94,7 @@ code <- paste0(folder, "/carbon_policy_networks/code")
   purchases_from_euets <- df_b2b %>%
     inner_join(fuel_suppliers_euets, by = "vat_i_ano") %>%
     group_by(vat_j_ano, year) %>%
-    summarise(purchases_from_importers_euets = sum(corr_sales_ij, na.rm = TRUE),
+    summarise(purchases_from_euets_importers = sum(corr_sales_ij, na.rm = TRUE),
               .groups = "drop")
   
 ##### Generate data set with amount spent in fuel ------
@@ -104,44 +106,23 @@ code <- paste0(folder, "/carbon_policy_networks/code")
     left_join(purchases_from_non_euets, by = c("vat_j_ano", "year")) %>%
     left_join(purchases_from_euets,     by = c("vat_j_ano", "year")) %>%
     left_join(firm_year_belgian_euets %>% select(vat, year, emissions, nace5d),
-              by = c("vat_j_ano" = "vat", "year")) %>% 
+              by = c("vat_j_ano" = "vat", "year")) %>%
     mutate(
       purchases_from_non_euets       = replace_na(purchases_from_non_euets, 0),
-      purchases_from_importers_euets = replace_na(purchases_from_importers_euets, 0),
+      purchases_from_euets_importers = replace_na(purchases_from_euets_importers, 0),
       imports_value                  = replace_na(imports_value, 0),
       is_importer_in_euets           = replace_na(is_importer_in_euets, 0),
       emissions = replace_na(emissions, 0),
       
       amount_spent_on_fuel =
         if_else(is_importer_in_euets == 1,
-                purchases_from_non_euets + purchases_from_importers_euets + imports_value,
-                purchases_from_non_euets + purchases_from_importers_euets)
+                purchases_from_non_euets + purchases_from_euets_importers + imports_value,
+                purchases_from_non_euets + purchases_from_euets_importers),
+      
+      amount_spent_on_fuel_excl_euets_importers = amount_spent_on_fuel - purchases_from_euets_importers
     )
   
-#### Create data set with proxy for fuel stock -----
-  
-  amount_spent_on_fuel_by_firm_year <- df_with_amount_spent_on_fuel %>%
-    arrange(vat_j_ano, year)
-  
-  # Compute whether firm EVER spent >0 up to year T
-  amount_spent_on_fuel_by_firm_year <- amount_spent_on_fuel_by_firm_year %>%
-    group_by(vat_j_ano) %>%
-    mutate(
-      ever_spent_fuel_up_to_t =
-        cumsum(amount_spent_on_fuel > 0) > 0
-    ) %>%
-    ungroup()
-  
-  # Create the stock dummy only for years with emissions >0
-  amount_spent_on_fuel_by_firm_year <- amount_spent_on_fuel_by_firm_year %>%
-    mutate(
-      has_fuel_stock_dummy =
-        if_else(ever_spent_fuel_up_to_t, 1L, 0L)
-    )
-  
-  # Create amount spent on fuel excluding purchases from EUETS fuel importers
-  amount_spent_on_fuel_by_firm_year <- amount_spent_on_fuel_by_firm_year %>%
-    mutate(amount_spent_on_fuel_excl_euets_importers = amount_spent_on_fuel - purchases_from_importers_euets)
+  amount_spent_on_fuel_by_firm_year <- df_with_amount_spent_on_fuel
   
 # Save it -----
 save(amount_spent_on_fuel_by_firm_year, file = paste0(proc_data, "/amount_spent_on_fuel_by_firm_year.RData"))
