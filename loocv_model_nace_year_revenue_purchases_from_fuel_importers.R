@@ -90,23 +90,16 @@ code <- paste0(folder, "/carbon_policy_networks/code")
     
     ## Fit model in levels ------
     
-      # FEs + revenue
-      model_level_FE <- lm(
-        emissions ~ year + nace5d + revenue,
-        data = train_data
-      )
-      test_data$pred_level_FE <- predict(model_level_FE, newdata = test_data)
-    
-      # FEs + revenue + fuel consumption
+      # FEs + fuel
       model_level_fuel <- lm(
-        emissions ~ year + nace5d + revenue + amount_spent_on_fuel,
+        emissions ~ year + nace5d + amount_spent_on_fuel,
         data = train_data
       )
       test_data$pred_level_fuel <- predict(model_level_fuel, newdata = test_data)
     
     ## Fit log-log model
       
-      # FEs + fuel consumption
+      # FEs + fuel
       model_log_fuel <- lm(
         log(emissions) ~ year + nace5d + log(amount_spent_on_fuel),
         data = train_data
@@ -115,16 +108,16 @@ code <- paste0(folder, "/carbon_policy_networks/code")
       test_data$log_pred_fuel <- predict(model_log_fuel, newdata = test_data)
       test_data$pred_log_fuel <- exp(test_data$log_pred_fuel) * smearing_factor
       
-      # FEs + fuel consumption from non-EUETS importers
-      model_log_fuel_non_euets <- lm(
+      # FEs + fuel excl. EUETS importers
+      model_log_fuel_excl_euets_importers <- lm(
         log(emissions) ~ year + nace5d + log(amount_spent_on_fuel_excl_euets_importers),
         data = train_data
       )
       smearing_factor <- mean(exp(residuals(model_log_fuel)), na.rm = TRUE)
-      test_data$log_pred_fuel_non_euets <- predict(model_log_fuel_non_euets, newdata = test_data)
-      test_data$pred_log_fuel_non_euets <- exp(test_data$log_pred_fuel_non_euets) * smearing_factor
+      test_data$log_pred_fuel_excl_euets_importers <- predict(model_log_fuel_excl_euets_importers, newdata = test_data)
+      test_data$pred_log_fuel_excl_euets_importers <- exp(test_data$log_pred_fuel_excl_euets_importers) * smearing_factor
     
-      # FEs + revenue + fuel consumption
+      # FEs + revenue + fuel
       model_log_rev_fuel <- lm(
         log(emissions) ~ year + nace5d + log(revenue) + log(amount_spent_on_fuel),
         data = train_data
@@ -133,14 +126,14 @@ code <- paste0(folder, "/carbon_policy_networks/code")
       test_data$log_pred_rev_fuel <- predict(model_log_rev_fuel, newdata = test_data)
       test_data$pred_log_rev_fuel <- exp(test_data$log_pred_rev_fuel) * smearing_factor
       
-      # FEs + revenue + fuel consumption from non-EUETS importers
-      model_log_rev_fuel_non_euets <- lm(
+      # FEs + revenue + fuel excl. EUETS importers
+      model_log_rev_fuel_excl_euets_importers <- lm(
         log(emissions) ~ year + nace5d + log(revenue) + log(amount_spent_on_fuel_excl_euets_importers),
         data = train_data
       )
-      smearing_factor <- mean(exp(residuals(model_log_rev_fuel_non_euets)), na.rm = TRUE)
-      test_data$log_pred_rev_fuel_non_euets <- predict(model_log_rev_fuel_non_euets, newdata = test_data)
-      test_data$pred_log_rev_fuel_non_euets <- exp(test_data$log_pred_rev_fuel_non_euets) * smearing_factor
+      smearing_factor <- mean(exp(residuals(model_log_rev_fuel_excl_euets_importers)), na.rm = TRUE)
+      test_data$log_pred_rev_fuel_excl_euets_importers <- predict(model_log_rev_fuel_excl_euets_importers, newdata = test_data)
+      test_data$pred_log_rev_fuel_excl_euets_importers <- exp(test_data$log_pred_rev_fuel_excl_euets_importers) * smearing_factor
     
     # Store results for this firm
     cv_results[[k]] <- test_data
@@ -150,101 +143,105 @@ code <- paste0(folder, "/carbon_policy_networks/code")
   
   df_lofo <- bind_rows(cv_results) %>%
     mutate(
-      # errors: level FE + revenue
-      err_level_FE     = pred_level_FE - emissions,
-      abs_err_level_FE = abs(err_level_FE),
-      sq_err_level_FE  = err_level_FE^2,
-      
-      # errors: level FE + revenue + fuel
+      # errors: Levels, FEs + fuel
       err_level_fuel     = pred_level_fuel - emissions,
       abs_err_level_fuel = abs(err_level_fuel),
       sq_err_level_fuel  = err_level_fuel^2,
       
-      # errors: FE + log fuel
-      err_log_fuel     = pred_log_fuel - emissions,
-      abs_err_log_fuel = abs(err_log_fuel),
-      sq_err_log_fuel  = err_log_fuel^2,
+      # errors: Log, FEs + fuel
+      err_log_fuel       = pred_log_fuel - emissions,
+      abs_err_log_fuel   = abs(err_log_fuel),
+      sq_err_log_fuel    = err_log_fuel^2,
       
-      # errors: FE + log fuel from non-EUETS importers
-      err_log_fuel_non_euets     = pred_log_fuel_non_euets - emissions,
-      abs_err_log_fuel_non_euets = abs(err_log_fuel_non_euets),
-      sq_err_log_fuel_non_euets  = err_log_fuel_non_euets^2,
+      # errors: Log, FEs + fuel excl. EUETS importers
+      err_log_fuel_excl_euets_importers       = pred_log_fuel_excl_euets_importers - emissions,
+      abs_err_log_fuel_excl_euets_importers   = abs(err_log_fuel_excl_euets_importers),
+      sq_err_log_fuel_excl_euets_importers    = err_log_fuel_excl_euets_importers^2,
       
-      # errors: FE + log revenue + log fuel
-      err_log_rev_fuel     = pred_log_rev_fuel - emissions,
-      abs_err_log_rev_fuel = abs(err_log_rev_fuel),
-      sq_err_log_rev_fuel  = err_log_rev_fuel^2,
+      # errors: Log, FEs + revenue + fuel
+      err_log_rev_fuel       = pred_log_rev_fuel - emissions,
+      abs_err_log_rev_fuel   = abs(err_log_rev_fuel),
+      sq_err_log_rev_fuel    = err_log_rev_fuel^2,
       
-      # errors: FE + log revenue + log fuel from non-EUETS importers
-      err_log_rev_fuel_non_euets     = pred_log_rev_fuel_non_euets - emissions,
-      abs_err_log_rev_fuel_non_euets = abs(err_log_rev_fuel_non_euets),
-      sq_err_log_rev_fuel_non_euets  = err_log_rev_fuel_non_euets^2
+      # errors: Log, FEs + revenue + fuel excl. EUETS importers
+      err_log_rev_fuel_excl_euets_importers       = pred_log_rev_fuel_excl_euets_importers - emissions,
+      abs_err_log_rev_fuel_excl_euets_importers   = abs(err_log_rev_fuel_excl_euets_importers),
+      sq_err_log_rev_fuel_excl_euets_importers    = err_log_rev_fuel_excl_euets_importers^2
     )
   
-### Overall performance metrics -------
+  ### Overall performance metrics -------
   
-  # Common SST for R2
-  sst <- sum((df_lofo$emissions - mean(df_lofo$emissions))^2, na.rm = TRUE)
+  # Common SST for R2 (based on emissions in the full LOOCV sample)
+  sst <- sum((df_lofo$emissions - mean(df_lofo$emissions, na.rm = TRUE))^2,
+             na.rm = TRUE)
   
   metrics <- function(err, err_sq, err_abs, pred, emissions) {
     RMSE <- sqrt(mean(err_sq, na.rm = TRUE))
-    normalized_RMSE <- RMSE / sd(emissions)
-    MAPD <- mean(abs(err/emissions))
+    normalized_RMSE <- RMSE / sd(emissions, na.rm = TRUE)
+    MAPD <- mean(abs(err / emissions), na.rm = TRUE)
     MAE  <- mean(err_abs, na.rm = TRUE)
     SSE  <- sum(err_sq, na.rm = TRUE)
     R2   <- 1 - SSE / sst
-    Rho  <- cor(df_lofo$emissions, pred,
-                method = "spearman", use = "complete.obs")
-    c(nRMSE = normalized_RMSE, MAPD = MAPD,
-      R2_LOO = R2, Rho_Spearman = Rho)
+    Rho  <- cor(emissions, pred, method = "spearman", use = "complete.obs")
+    
+    c(
+      nRMSE        = normalized_RMSE,
+      MAPD         = MAPD,
+      R2_LOO       = R2,
+      Rho_Spearman = Rho
+    )
   }
   
-  m_level_FE    <- metrics(df_lofo$err_level_FE,
-                           df_lofo$sq_err_level_FE,
-                           df_lofo$abs_err_level_FE,
-                           df_lofo$pred_level_FE,
-                           df_lofo$emissions)
+  m_level_fuel <- metrics(
+    df_lofo$err_level_fuel,
+    df_lofo$sq_err_level_fuel,
+    df_lofo$abs_err_level_fuel,
+    df_lofo$pred_level_fuel,
+    df_lofo$emissions
+  )
   
-  m_level_fuel  <- metrics(df_lofo$err_level_fuel,
-                           df_lofo$sq_err_level_fuel,
-                           df_lofo$abs_err_level_fuel,
-                           df_lofo$pred_level_fuel,
-                           df_lofo$emissions)
+  m_log_fuel <- metrics(
+    df_lofo$err_log_fuel,
+    df_lofo$sq_err_log_fuel,
+    df_lofo$abs_err_log_fuel,
+    df_lofo$pred_log_fuel,
+    df_lofo$emissions
+  )
   
-  m_log_fuel    <- metrics(df_lofo$err_log_fuel,
-                           df_lofo$sq_err_log_fuel,
-                           df_lofo$abs_err_log_fuel,
-                           df_lofo$pred_log_fuel,
-                           df_lofo$emissions)
+  m_log_fuel_excl_euets_importers <- metrics(
+    df_lofo$err_log_fuel_excl_euets_importers,
+    df_lofo$sq_err_log_fuel_excl_euets_importers,
+    df_lofo$abs_err_log_fuel_excl_euets_importers,
+    df_lofo$pred_log_fuel_excl_euets_importers,
+    df_lofo$emissions
+  )
   
-  m_log_fuel_non_euets    <- metrics(df_lofo$err_log_fuel_non_euets,
-                           df_lofo$sq_err_log_fuel_non_euets,
-                           df_lofo$abs_err_log_fuel_non_euets,
-                           df_lofo$pred_log_fuel_non_euets,
-                           df_lofo$emissions)
+  m_log_rev_fuel <- metrics(
+    df_lofo$err_log_rev_fuel,
+    df_lofo$sq_err_log_rev_fuel,
+    df_lofo$abs_err_log_rev_fuel,
+    df_lofo$pred_log_rev_fuel,
+    df_lofo$emissions
+  )
   
-  m_log_rev_fuel    <- metrics(df_lofo$err_log_rev_fuel,
-                           df_lofo$sq_err_log_rev_fuel,
-                           df_lofo$abs_err_log_rev_fuel,
-                           df_lofo$pred_log_rev_fuel,
-                           df_lofo$emissions)
-  
-  m_log_rev_fuel_non_euets  <- metrics(df_lofo$err_log_rev_fuel_non_euets,
-                               df_lofo$sq_err_log_rev_fuel_non_euets,
-                               df_lofo$abs_err_log_rev_fuel_non_euets,
-                               df_lofo$pred_log_rev_fuel_non_euets,
-                               df_lofo$emissions)
+  m_log_rev_fuel_excl_euets_importers <- metrics(
+    df_lofo$err_log_rev_fuel_excl_euets_importers,
+    df_lofo$sq_err_log_rev_fuel_excl_euets_importers,
+    df_lofo$abs_err_log_rev_fuel_excl_euets_importers,
+    df_lofo$pred_log_rev_fuel_excl_euets_importers,
+    df_lofo$emissions
+  )
   
   perf_comparison <- rbind(
-    "Level: FEs + revenue"              = m_level_FE,
-    "Level: FEs + revenue + fuel"       = m_level_fuel,
-    "Log: FEs + fuel"                   = m_log_fuel,
-    "Log: FEs + fuel from non-EUETS importers"                   = m_log_fuel_non_euets,
-    "Log: FEs + revenue + fuel"         = m_log_rev_fuel,
-    "Log: FEs + revenue + fuel from non-EUETS importers"         = m_log_rev_fuel_non_euets
+    "Levels: FEs + fuel"                                  = m_level_fuel,
+    "Log: FEs + fuel"                                     = m_log_fuel,
+    "Log: FEs + fuel excl. EUETS importers"               = m_log_fuel_excl_euets_importers,
+    "Log: FEs + revenue + fuel"                           = m_log_rev_fuel,
+    "Log: FEs + revenue + fuel excl. EUETS importers"     = m_log_rev_fuel_excl_euets_importers
   )
   
   perf_comparison
+  
   
 # Save it ----------
 df_training_data <- df_no_singletons
