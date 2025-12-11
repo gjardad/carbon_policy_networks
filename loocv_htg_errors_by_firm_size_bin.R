@@ -38,7 +38,7 @@ cutoff <- quantile(df_lofo$revenue, 0.99, na.rm = TRUE)
 df_vis <- df_lofo %>%
   mutate(
     # 20 bins of firm size by revenue
-    size_bin = ntile(revenue, 20),
+    size_bin = ntile(revenue, 7),
     
     # fuel-only model using fuel excl EUETS importers
     abs_err_fuel_excl_euets_importers =
@@ -70,16 +70,16 @@ legend_df <- data.frame(
 
 p_compare <- ggplot(df_compare, aes(x = factor(size_bin), y = abs_error_kton)) +
   
-  # jittered points (NO legend)
+  # jittered points
   geom_jitter(
     aes(color = model),
-    width = 0.25,
-    alpha = 0.90,
-    size  = 0.8,
+    width = 0.15,
+    alpha = 0.60,
+    size  = 0.5,
     show.legend = FALSE
   ) +
   
-  # boxplots (NO legend)
+  # boxplots
   geom_boxplot(
     aes(fill = model),
     alpha = 0.6,
@@ -116,8 +116,8 @@ p_compare <- ggplot(df_compare, aes(x = factor(size_bin), y = abs_error_kton)) +
       "abs_err_rev_fuel_excl_euets_importers" = "#64b5f6"
     ),
     labels = c(
-      "abs_err_fuel_excl_euets_importers"     = "Model with only fuel consumption",
-      "abs_err_rev_fuel_excl_euets_importers" = "Model with revenue and fuel consumption"
+      "abs_err_fuel_excl_euets_importers"     = "Fuel consumption",
+      "abs_err_rev_fuel_excl_euets_importers" = "Revenue + Fuel consumption"
     )
   ) +
   
@@ -142,27 +142,41 @@ p_compare <- ggplot(df_compare, aes(x = factor(size_bin), y = abs_error_kton)) +
     legend.text = element_text(size = 16),
     axis.title.x = element_text(size = 18, margin = margin(t = 14)),
     axis.title.y = element_text(size = 18, margin = margin(r = 14)),
-    axis.text    = element_text(size = 16)
+    axis.text    = element_text(size = 14)
   )
 
-print(p_compare)
-ggsave(paste0(output, "/abs_errors_loocv_in_models_with_and_wout_revenue.png"), p_compare, width = 6, height = 5, dpi = 300)
+p_compare_logY <- p_compare + 
+  scale_y_log10() +
+  #annotation_logticks(sides = "l") +
+  labs(y = "Absolute error (ktons CO2, log scale)") +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    legend.title    = element_blank(),
+    legend.text = element_text(size = 12),
+    axis.title.x = element_text(size = 14, margin = margin(t = 14)),
+    axis.title.y = element_text(size = 14, margin = margin(r = 14)),
+    axis.text    = element_text(size = 12)
+  )
+
+p_compare_logY
+ggsave(paste0(output, "/abs_errors_loocv_in_models_with_and_wout_revenue.png"), p_compare_logY, width = 6, height = 5, dpi = 300)
 
 ## ------------------------------------------------------------------
 ## Regressions: log(emissions) ~ log(revenue)
-##  - bins 1–19 combined
-##  - bin 20 only
+##  - bins 1–6 combined
+##  - bin 7 only
 ## ------------------------------------------------------------------
 
 # ensure we have size_bin in this object
 df_bins <- df_vis
 
 mod_small <- df_bins %>%
-  filter(size_bin < 20) %>%
+  filter(size_bin < 7) %>%
   lm(log(emissions) ~ log(revenue), data = .)
 
 mod_large <- df_bins %>%
-  filter(size_bin == 20) %>%
+  filter(size_bin == 7) %>%
   lm(log(emissions) ~ log(revenue), data = .)
 
 # Tidy coefficients and R^2 into a single table
@@ -193,16 +207,16 @@ coef_table
 
 ## ------------------------------------------------------------------
 ## Scatter plots on log(emissions) vs log(revenue)
-##  - bins 1–19 combined
-##  - bin 20 only
+##  - bins 1-6 combined
+##  - bin 7 only
 ## ------------------------------------------------------------------
 
 
 df_scatter_plot<- df_lofo %>%
-  mutate(size_bin = ntile(revenue, 20))
+  mutate(size_bin = ntile(revenue, 7))
 
 p_small <- df_scatter_plot %>%
-  filter(size_bin < 20) %>%
+  filter(size_bin < 7) %>%
   ggplot(aes(x = revenue, y = emissions)) +
   geom_point(alpha = 0.4, color = "#64b5f6", size = 1.5) +
   geom_smooth(method = "lm", se = FALSE, color = "#0d47a1", linewidth = 1) +
@@ -221,7 +235,7 @@ p_small <- df_scatter_plot %>%
   )
 
 p_large <- df_scatter_plot %>%
-  filter(size_bin == 20) %>%
+  filter(size_bin == 7) %>%
   ggplot(aes(x = revenue, y = emissions)) +
   geom_point(alpha = 0.6, color = "#e57373", size = 2) +
   geom_smooth(method = "lm", se = FALSE, color = "#b71c1c", linewidth = 1) +
@@ -239,7 +253,7 @@ p_large <- df_scatter_plot %>%
     axis.text    = element_text(size = 16)
   )
 
-ggsave(paste0(output, "/revenue_vs_emissions_bins_1_to_19.png"), p_small, width = 6, height = 5, dpi = 300)
-ggsave(paste0(output, "/revenue_vs_emissions_bin_20.png"), p_large, width = 6, height = 5, dpi = 300)
+ggsave(paste0(output, "/revenue_vs_emissions_small_firms.png"), p_small, width = 6, height = 5, dpi = 300)
+ggsave(paste0(output, "/revenue_vs_emissions_large_firms.png"), p_large, width = 6, height = 5, dpi = 300)
 
 
