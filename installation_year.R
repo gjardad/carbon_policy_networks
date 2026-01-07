@@ -13,7 +13,7 @@
 ## Setup ------
 rm(list = ls())
 
-if(Sys.info()[["user"]] =="JARDANG"){
+if(tolower(Sys.info()[["user"]]) == "jardang"){
   folder <- "X:/Documents/JARDANG" 
 }
 
@@ -38,12 +38,18 @@ df_installation <- read.csv(paste0(raw_data,"/EUTL/Oct_2024_version/installation
 
 df_compliance <- read.csv(paste0(raw_data,"/EUTL/Oct_2024_version/compliance.csv"))
 
+library(haven)
+df_belgium_euets <- read_dta(paste0(raw_data,"/NBB/EUTL_Belgium.dta")) %>% 
+  rename(bvd_id = bvdid, firm_id = companyregistrationnumber)
+
+df_account <- read.csv(paste0(raw_data,"/EUTL/Oct_2024_version/account.csv"))
+
 ## Clean data -------
 
 df_installation <- df_installation %>% 
   rename(installation_id = id) %>% 
   select(c(installation_id, country_id, activity_id, nace_id)) %>% 
-  filter(nace_id != 51.00) # exclude avitation
+  filter(nace_id != 51.00) # exclude aviation
 
 installation_year_emissions <- df_installation %>% 
   left_join(df_compliance, by = "installation_id") %>% 
@@ -68,6 +74,21 @@ installation_year_emissions <- df_installation %>%
   mutate(nace_id = ifelse(str_detect(nace_id, "^[0-9]\\."),
                           paste0("0", nace_id),
                           nace_id))
+
+# --------------------------
+# Add info on firms' VAT ---
+# --------------------------
+
+df_account <- df_account %>% 
+  rename(account_id = id, account_type = accountType_id, bvd_id = bvdId,
+         firm_id = companyRegistrationNumber) %>% 
+  select(account_id, account_type, bvd_id, installation_id, firm_id) %>% 
+  filter(account_type %in% c("100-7","120-0"))
+
+installation_year_emissions <- installation_year_emissions %>% 
+  inner_join(df_account %>% select(bvd_id, installation_id),
+            by = "installation_id") %>% 
+  distinct()
 
 ## Save it ------
 save(installation_year_emissions, file = paste0(proc_data,"/installation_year_emissions.RData"))
