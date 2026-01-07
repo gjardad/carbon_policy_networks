@@ -38,12 +38,13 @@ library(stringr)
   load(paste0(proc_data, "crf_to_nace_map.RData"))
 
 # Create data set with rows at the CRF-year level ------
+
   years  <- 2005:2022
 
-  df_expanded <- crf_nace_group %>%
+  df_expanded <- crf_to_nace_map %>%
     tidyr::expand_grid(year = years)
   
-  valid_crf_codes <- crf_nace_group$crf %>%
+  valid_crf_codes <- crf_to_nace_map$crf %>%
     unique() %>%
     ifelse(grepl("\\.$", .), ., paste0(., "."))
 
