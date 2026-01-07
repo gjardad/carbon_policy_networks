@@ -134,5 +134,8 @@ activity_of_establishments <- establishment %>%
             by = c("establishmentnumber" = "entitynumber")) %>% 
   left_join(enterprise %>% select(enterprisenumber, vat), by = "enterprisenumber")
 
+## Rename it -----
+nace5d_of_establishments_from_cbe <- activity_of_establishments
+
 # Save it -------
-save(activity_of_establishments, file = paste0(proc_data, "/nace5d_of_establishments.RData"))
+save(nace5d_of_establishments_from_cbe, file = paste0(proc_data, "/nace5d_of_establishments_from_cbe.RData"))
