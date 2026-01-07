@@ -111,17 +111,18 @@ crf_nace_map <- tribble(
   list(c("D35")),
   
   "1.B.2.c.i.", "Venting",
-  # the official mapping for 1.B.2.c also includes B05, B06, B07, B08, B09
+  list(c("D35")),
+  
+  "1.B.2.c.ii.", "Flaring",
+  list(c("C19")),
+  
+  # Obs: the official mapping for 1.B.2.c also includes B05, B06, B07, B08, B09
   # but NIR reports that there are two only sources of emissions
   # for this category: 1.B.2.c.ii corresponds exclusively to
   # flaring of refinery gas (section 3.2.6.2.2 Petroleum refining),
   # which is NACE 19, and a small amount of CH4 from venting
   # at a gas receiving terminal (section 3.3.2.2.4 Venting and Flaring in NIR)
   # which is NACE 35 
-  list(c("D35")),
-  
-  "1.B.2.c.ii.", "Flaring",
-  list(c("C19")),
   
   # ------- Industrial processes ---------
   
@@ -154,6 +155,7 @@ crf_nace_long <- crf_nace_map %>%
 # Create NACE groups ---------
 
   # obs: a group is a set of connected components in a graph of NACE codes
+
   # there's an edge between any two NACE codes if they ever appear together for the same crf
   # each connected componenent of the graph is a nace_group
 
@@ -212,9 +214,9 @@ crf_nace_long <- crf_nace_map %>%
     nace_group = comp$membership[match(V(g)$name, names(comp$membership))]
   )
   
-  # 6. Join back to your original data
-  crf_nace_group <- crf_nace_long %>%
+  # 6. Join back to your original data and rename it
+  crf_to_nace_map <- crf_nace_long %>%
     left_join(nace_groups, by = "nace_code")
 
 # Save it ---------
-save(crf_nace_group, file = paste0(proc_data, "crf_to_nace_map.RData"))
+save(crf_to_nace_map, file = paste0(proc_data, "crf_to_nace_map.RData"))
