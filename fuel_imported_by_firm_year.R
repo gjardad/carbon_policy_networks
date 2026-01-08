@@ -1,6 +1,6 @@
 #### HEADER -------
 
-## This code identifies importers of fuels into Belgium
+## This code identifies fuel importers in Belgium
 
 #####################
 
@@ -87,14 +87,20 @@ load(paste0(proc_data,"/cn8digit_codes_for_fossil_fuels.RData"))
   
   load(paste0(proc_data, "/firm_year_belgian_euets.RData"))
   firm_year_belgian_euets$is_euets <- 1
-  # this NACE5d code comes from national accounts and therefore is at the firm level;
-  # it's not the NACE codes of the installations
   
   fuel_imported_by_firm_year <- df_firm_year_fuel %>% 
-    left_join(firm_year_belgian_euets %>% select(vat, year, nace5d, in_sample, is_euets),
+    left_join(firm_year_belgian_euets %>% select(vat, year, in_sample, is_euets),
               by = c("year", "vat_ano" = "vat")) %>% 
     mutate(is_euets = if_else(is.na(is_euets), 0, is_euets),
            in_sample = if_else(is.na(in_sample), 0, in_sample))
+  
+# Include NACE 5-digit code -------
+
+load(paste0(proc_data,"/annual_accounts_selected_sample.RData"))
+
+fuel_imported_by_firm_year <- fuel_imported_by_firm_year %>% 
+  left_join(df_annual_accounts_selected_sample %>% select(vat_ano, year, nace5d),
+            by = c("year", "vat_ano"))
   
 # Save it ------
 save(fuel_imported_by_firm_year, file = paste0(proc_data,"/fuel_imported_by_firm_year.RData"))
