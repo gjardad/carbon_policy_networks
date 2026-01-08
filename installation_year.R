@@ -75,9 +75,9 @@ installation_year_emissions <- df_installation %>%
                           paste0("0", nace_id),
                           nace_id))
 
-# --------------------------
-# Add info on firms' VAT ---
-# --------------------------
+# ----------------------------------
+# Add info on Belgian firms' VAT ---
+# ----------------------------------
 
 df_account <- df_account %>% 
   rename(account_id = id, account_type = accountType_id, bvd_id = bvdId,
@@ -85,13 +85,41 @@ df_account <- df_account %>%
   select(account_id, account_type, bvd_id, installation_id, firm_id) %>% 
   filter(account_type %in% c("100-7","120-0"))
 
-installation_year_emissions <- installation_year_emissions %>% 
+# unique bvd_id, vat in Belgium
+unique_id <- df_belgium_euets %>% 
+  select(bvd_id, vat_ano) %>% 
+  distinct()
+
+installation_year_in_belgium <- installation_year_emissions %>% 
   inner_join(df_account %>% select(bvd_id, installation_id),
             by = "installation_id") %>% 
-  distinct()
+  distinct() %>%
+  left_join(unique_id, by = "bvd_id") %>%
+  filter(substr(installation_id, 1, 2) == "BE")
+
+# clean duplicates and keep the ones for which we have BvD id
+installation_year_in_belgium <- installation_year_in_belgium %>%
+  mutate(
+    # standardize to character + trim
+    bvd_id  = str_trim(as.character(bvd_id)),
+    vat_ano = str_trim(as.character(vat_ano)),
+    
+    # treat empty / whitespace / "NA" as missing
+    bvd_id  = na_if(bvd_id, ""),
+    vat_ano = na_if(vat_ano, ""),
+    bvd_id  = na_if(bvd_id, "NA"),
+    vat_ano = na_if(vat_ano, "NA"),
+    
+    has_bvd = !is.na(bvd_id),
+    has_vat = !is.na(vat_ano)
+  ) %>%
+  arrange(installation_id, year, desc(has_bvd), desc(has_vat)) %>%
+  distinct(installation_id, year, .keep_all = TRUE) %>%
+  select(-has_bvd, -has_vat)
 
 ## Save it ------
 save(installation_year_emissions, file = paste0(proc_data,"/installation_year_emissions.RData"))
+save(installation_year_in_belgium, file = paste0(proc_data,"/installation_year_in_belgium.RData"))
 
   
 
