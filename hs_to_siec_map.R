@@ -178,8 +178,5 @@ hs_to_siec_map <- tribble(
   "271020", "4699", "Other oil products n.e.c."
 )
 
-  # is the SIEC code present in Eurostat data?
-  load(paste0(int_data,"/unique_siec_eurostat_energy_balance_belgium.RData"))
-
 # Save it ------
 save(hs_to_siec_map, file = paste0(proc_data,"/hs_to_siec_map.RData"))
