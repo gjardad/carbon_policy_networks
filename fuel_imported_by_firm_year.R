@@ -24,12 +24,12 @@ code <- paste0(folder, "/carbon_policy_networks/code")
 # Libraries ----
 
 library(tidyverse)
-library(dplyr) # even though dplyr is included in tidyverse, still need to load it separately
+library(dplyr) 
 
 # Import and data --------
 
 load(paste0(proc_data,"/df_trade.RData"))
-load(paste0(proc_data,"/cn8digit_codes_for_fossil_fuels.RData"))
+#load(paste0(proc_data,"/cn8digit_codes_for_fossil_fuels.RData"))
 
 # Calculate for each firm amount of fuel imported and share of imports that are fuels -----
 
@@ -42,7 +42,7 @@ load(paste0(proc_data,"/cn8digit_codes_for_fossil_fuels.RData"))
     )
 
   df_fuel_trade <- df_trade %>%
-    inner_join(cn8digit_codes_for_fossil_fuels, by = c("cncode" = "cn_code"))
+    filter(substr(cncode, 1, 2) == "27" & substr(cncode, 1, 4) != "2716")
 
   df_fuel_stats <- df_fuel_trade %>%
     group_by(vat_ano, year, cncode) %>%
