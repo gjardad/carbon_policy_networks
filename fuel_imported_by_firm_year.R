@@ -81,7 +81,8 @@ load(paste0(proc_data,"/df_trade.RData"))
             imports_units  > eps),
         1L, 0L
       )
-    )
+    ) %>% 
+    select(-c(exports_weight, exports_value, exports_units, total_imports_value_all, fuel_share_of_imports))
   
 # Include variable that identifies EUETS firms -------
   
