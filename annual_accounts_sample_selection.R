@@ -76,9 +76,21 @@ load(paste0(proc_data,"/df_national_accounts_with_5digits.RData"))
     filter(!is.na(v_0022_27) & v_0022_27 > 100) %>% # tangible assets > 100
     filter(positive_total_assets == 1) # positive total assets in at least one year
   
+# Define set of vat_ano of firms selected into sample --------
+  
+firms_in_selected_sample <- selected_sample %>% 
+    select(vat_ano) %>% 
+    distinct()
+  
+firms_in_more_selected_sample <- more_selected_sample %>% 
+  select(vat_ano) %>% 
+  distinct()
+  
 # save it ----
 df_annual_accounts_selected_sample <- selected_sample
 save(df_annual_accounts_selected_sample, file = paste0(proc_data,"/annual_accounts_selected_sample.RData"))
+
+save(firms_in_selected_sample, file = paste0(proc_data,"/firms_in_selected_sample.RData"))
   
 df_annual_accounts_more_selected_sample <- more_selected_sample
 save(df_annual_accounts_more_selected_sample, file = paste0(proc_data,"/annual_accounts_more_selected_sample.RData"))  
