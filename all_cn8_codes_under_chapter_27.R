@@ -2,6 +2,8 @@
 
 ## This code creates list of all CN 8-digit codes for goods listed in chapter 27 of World HS
 
+# For each CN 8-digit code it includes the product description and the units it is reported in customs
+
 #####################
 
 # Setup ------
@@ -144,15 +146,15 @@ blocks <- lines_grouped |>
     )
   )
 
-cn27_all_levels <- blocks |>
+ch27_all_levels <- blocks |>
   select(code, code_raw, level, Description) |>
   arrange(code)
 
-cn27_all_levels
+ch27_all_levels
 
 # Identify units ---------
 
-cn27_all_levels <- cn27_all_levels %>%
+ch27_all_levels <- ch27_all_levels %>%
   mutate(
     # 1) raw unit only for CN8 rows: capture everything after the *last* dot.
     unit_raw = if_else(
@@ -170,7 +172,7 @@ cn27_all_levels <- cn27_all_levels %>%
 
 # Cleaning ---------
 
-cn27_all_levels2 <- cn27_all_levels %>%
+ch27_all_levels2 <- ch27_all_levels %>%
   mutate(
     # remove -, ., :, spaces and lower-case for a clean check
     desc_no_punct = Description %>%
@@ -234,14 +236,14 @@ get_base_name <- function(desc) {
   if (x == "") NA_character_ else x
 }
 
-parents <- cn27_all_levels2 %>%
+parents <- ch27_all_levels2 %>%
   filter(level %in% c("HS4", "HS6")) %>%
   mutate(
     parent_base = map_chr(Description, get_base_name)
   ) %>%
   select(level, code, parent_base)
 
-cn27_final <- cn27_all_levels2 %>%
+ch27_final <- ch27_all_levels2 %>%
   # prepare HS parent codes for CN8 rows
   mutate(
     hs6_code = if_else(level == "CN8", substr(code, 1, 6), NA_character_),
@@ -286,7 +288,9 @@ cn27_final <- cn27_all_levels2 %>%
     )
   )
 
-cn27_cn8_final <- cn27_final %>% 
+ch27_cn8_final <- ch27_final %>% 
   filter(level == "CN8") %>% 
-  select(code, fuel_name)
+  select(code, fuel_name, unit) %>% 
+  rename(cncode = code)
+
 
