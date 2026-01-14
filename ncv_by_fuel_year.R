@@ -4,7 +4,7 @@
 
 # It creates two data sets:
 # 1. NCVs by fuel by SIEC code
-# 2. NCVs by fuel by HS code
+# 2. NCVs by fuel by HS code (# Obs: I do NOT trust hs_to_siec_map)
 
 # It contains information directly obtained from Table 4.1 in the UN IRES, 2018
 
@@ -30,7 +30,7 @@ code <- paste0(folder, "/carbon_policy_networks/code")
 # Libraries ----
 
 library(tidyverse)
-library(dplyr) # even though dplyr is included in tidyverse, still need to load it separately
+library(dplyr)
 
 # Import and clean data --------
 
@@ -128,7 +128,17 @@ ncv_by_fuel_siec_year <- read_csv(paste0(raw_data, "/Eurostat/ncv_by_fuel_year.c
       )
     )
   
+# Report values in TJ per kg
+  
+  ncv_by_fuel_siec_year <- ncv_by_fuel_siec_year %>% 
+    mutate(ncv_tj_per_kg = value * 1e-9) %>% 
+    rename(ncv_mj_per_tonne = value)
+
+# ====================================================================  
 # Create version of data set by fuel following HS categories --------
+  
+  # Obs: I do NOT trust hs_to_siec_map
+# ====================================================================
   
   hs_siec_ncv <- hs_to_siec_map %>%
     inner_join(
