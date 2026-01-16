@@ -91,10 +91,9 @@ load(paste0(proc_data,"/df_trade.RData"))
   firm_year_belgian_euets$is_euets <- 1
   
   fuel_imported_by_firm_year <- df_firm_year_fuel %>% 
-    left_join(firm_year_belgian_euets %>% select(vat, year, in_sample, is_euets),
+    left_join(firm_year_belgian_euets %>% select(vat, year, is_euets),
               by = c("year", "vat_ano" = "vat")) %>% 
-    mutate(is_euets = if_else(is.na(is_euets), 0, is_euets),
-           in_sample = if_else(is.na(in_sample), 0, in_sample))
+    mutate(is_euets = if_else(is.na(is_euets), 0, is_euets))
   
 # Include NACE 5-digit code -------
 
@@ -103,6 +102,15 @@ load(paste0(proc_data,"/annual_accounts_selected_sample.RData"))
 fuel_imported_by_firm_year <- fuel_imported_by_firm_year %>% 
   left_join(df_annual_accounts_selected_sample %>% select(vat_ano, year, nace5d),
             by = c("year", "vat_ano"))
+
+# Include variable that identifies if firm is in annual accounts working sample --------
+
+load(paste0(proc_data,"/firms_in_selected_sample.RData"))
+
+firms_in_selected_sample$is_in_sample <- 1
+
+fuel_imported_by_firm_year <- fuel_imported_by_firm_year %>% 
+  left_join(firms_in_selected_sample, by = "vat_ano")
   
 # Save it ------
 save(fuel_imported_by_firm_year, file = paste0(proc_data,"/fuel_imported_by_firm_year.RData"))
