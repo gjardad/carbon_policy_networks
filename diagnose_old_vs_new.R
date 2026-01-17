@@ -353,8 +353,15 @@ run_lofo_pair_with_bug_option <- function(df_bench, df_excl,
     out_excl[[k]]  <- test_e %>% transmute(firm_id, year, emissions, pred)
   }
   
-  preds_b <- bind_rows(out_bench)
-  preds_e <- bind_rows(out_excl)
+  preds_b <- bind_rows(out_bench) %>%
+    distinct(firm_id, year, .keep_all = TRUE)
+  
+  preds_e <- bind_rows(out_excl) %>%
+    distinct(firm_id, year, .keep_all = TRUE)
+  
+  # Hard guard: LOFO must generate exactly one prediction per firm-year
+  stopifnot(nrow(preds_b) == n_distinct(preds_b$firm_id, preds_b$year))
+  stopifnot(nrow(preds_e) == n_distinct(preds_e$firm_id, preds_e$year))
   
   list(
     bench = list(preds = preds_b, perf = summarise_perf(preds_b)),
