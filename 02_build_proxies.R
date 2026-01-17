@@ -52,7 +52,17 @@ for (k in seq_len(nrow(grid))) {
   
   mods <- as.list(row)
   proxy <- build_fuel_proxy(mods, aux) %>%
-    mutate(fuel_proxy = as.numeric(fuel_proxy))
+    mutate(fuel_proxy = as.numeric(fuel_proxy)) %>% 
+    group_by(buyer_id, year) %>%
+    summarise(fuel_proxy = sum(fuel_proxy, na.rm = TRUE), .groups = "drop")
+  
+  # ---- Complete proxy on full buyer-year universe ----
+  buyer_year_universe <- aux$aux_b2b_minimal %>%
+    distinct(buyer_id, year)
+  
+  proxy <- buyer_year_universe %>%
+    left_join(proxy, by = c("buyer_id","year")) %>%
+    mutate(fuel_proxy = coalesce(fuel_proxy, 0))
   
   saveRDS(list(name = nm, mods = mods, proxy = proxy), out_path)
   
