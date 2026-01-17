@@ -74,8 +74,11 @@ results <- purrr::map_dfr(seq_along(proxy_files), function(i) {
   log_step(paste0("=== Proxy: ", nm, " ==="))
   
   df <- euets_base %>%
-    inner_join(proxy, by = c("firm_id" = "buyer_id", "year" = "year")) %>%
-    mutate(fuel_proxy = fuel_proxy)
+    left_join(proxy, by = c("firm_id" = "buyer_id", "year" = "year")) %>%
+    mutate(fuel_proxy = as.numeric(fuel_proxy)) %>%
+    filter(emissions > 0, !is.na(fuel_proxy), fuel_proxy > 0)
+  
+  saveRDS(df, file.path(RESULTS_DIR, paste0("estimation_df_", nm, ".rds")))
   
   # ---- Model A: year + sector(nace2d) FE ----
   log_step("Running Model A (year + nace2d FE) LOFO")
