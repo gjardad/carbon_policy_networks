@@ -2,464 +2,263 @@
 # diagnose_old_vs_new.R
 #
 # PURPOSE:
-#   (1) Replicate your "old" LOFO findings inside the *new* infrastructure
-#       (fixest + consistent LOFO + same metrics).
-#   (2) Attribute differences vs the current pipeline to:
-#         - FE level (nace5d vs nace2d)
-#         - importer definition (old strict CN8 list vs broad ch27)
-#         - smearing bug (re-using benchmark smear for excl model)
-#         - sector threshold (>=2 vs >=3)
+#   EXACTLY reproduce:
+#     (A) NEW pipeline result for one proxy/spec (from estimation_df_<proxy>.rds)
+#     (B) OLD LOOCV-style result built from amount_spent_on_fuel_by_firm_year
+#   and then decompose the difference mechanically into:
+#     1) FE level effect (nace2d vs nace5d) holding proxy+support fixed
+#     2) Proxy definition effect (NEW vs OLD) holding FE+support fixed
+#     3) Support differences (which firm-years differ)
+#
+# WHAT YOU MUST SET:
+#   - proxy_name_new: the pipeline proxy name you want (your chosen one below)
+#   - old_proxy_var:  the column name in amount_spent_on_fuel_by_firm_year that
+#                     matches the old spec (exclude EUETS importers)
 #
 # OUTPUT:
-#   Saves:
-#     output/loocv/results/diagnose_old_vs_new.csv
-#     output/loocv/results/diagnose_old_vs_new.rds
+#   Prints and saves a bundle to /output/loocv/results/
 ###############################################################################
 
-# --- working directory ---
-if (tolower(Sys.info()[["user"]]) == "jardang") {
-  setwd("X:/Documents/JARDANG/carbon_policy_networks/code/loocv")
-} else stop("Unknown user; setwd manually.")
+rm(list = ls())
 
 source("00_config.R")
+source(file.path(FUN_DIR, "run_lofo_fixest.R"))  # run_lofo_fixest_log_fuel()
 
-suppressPackageStartupMessages({
-  library(dplyr)
-  library(tidyr)
-  library(readr)
-  library(fixest)
-  library(stringr)
-})
+library(dplyr)
+library(readr)
+library(stringr)
 
 # ----------------------------
-# 0) Load datasets
+# USER SETTINGS
 # ----------------------------
+proxy_name_new <- "proxy_siecAll0_nonEUETS1_buyerSIEC0_wEm0_nacenone"
+old_proxy_var  <- "amount_spent_on_fuel_excl_euets_importers"  # change if needed
+
+MIN_FIRMS_PER_SECTOR <- 3  # must match pipeline
+
+# ----------------------------
+# Helpers
+# ----------------------------
+metrics_only <- function(out) out$perf
+
+run_modelA <- function(df, sector_col) {
+  run_lofo_fixest_log_fuel(
+    df,
+    firm_col = "firm_id",
+    year_col = "year",
+    sector_col = sector_col,
+    emissions_col = "emissions",
+    proxy_col = "fuel_proxy",
+    min_firms_per_sector = MIN_FIRMS_PER_SECTOR,
+    verbose = FALSE
+  )
+}
+
+# ----------------------------
+# (A) NEW: reproduce pipeline exactly
+# ----------------------------
+res <- readRDS(file.path(RESULTS_DIR, "model_comparison_by_proxy.rds"))
+res_row <- res %>%
+  filter(name == proxy_name_new) %>%
+  select(name, A_nRMSE, A_MAPD, A_R2_LOO, A_Rho_Spearman, A_n_obs)
+
+stopifnot(nrow(res_row) == 1)
+
+df_new_path <- file.path(RESULTS_DIR, paste0("estimation_df_", proxy_name_new, ".rds"))
+stopifnot(file.exists(df_new_path))
+df_new <- readRDS(df_new_path)
+
+# df_new is the authoritative pipeline estimation dataset
+# It should already be filtered to emissions>0 and fuel_proxy>0
+stopifnot(all(df_new$emissions > 0))
+stopifnot(all(df_new$fuel_proxy > 0))
+
+out_new <- run_modelA(
+  df_new %>% transmute(firm_id, year, sector = sector, emissions, fuel_proxy),
+  sector_col = "sector"
+)
+
+new_perf <- metrics_only(out_new) %>% mutate(which = "NEW_pipeline_recomputed")
+
+# Must match res_row exactly (up to tolerance)
+stopifnot(nrow(new_perf) == 1)
+check_new <- all.equal(
+  as.numeric(res_row %>% select(-name)),
+  as.numeric(new_perf %>% select(nRMSE, MAPD, R2_LOO, Rho_Spearman, n_obs)),
+  tolerance = 1e-10
+)
+
+cat("\n=== NEW pipeline row (from res) ===\n")
+print(res_row)
+cat("\n=== NEW pipeline recomputed (from estimation_df) ===\n")
+print(new_perf)
+cat("\nall.equal(res_row, recomputed) =\n")
+print(check_new)
+
+# ----------------------------
+# (B) OLD: reproduce old LOOCV-style dataset deterministically
+# ----------------------------
+load(paste0(proc_data, "/amount_spent_on_fuel_by_firm_year.RData"))
 load(paste0(proc_data, "/firm_year_belgian_euets.RData"))
-load(paste0(proc_data, "/annual_accounts_selected_sample_key_variables.RData"))
-load(paste0(proc_data, "/b2b_selected_sample.RData"))
-load(paste0(proc_data, "/firm_cncode_year_ef_weighted_qty.RData"))  # ef_weighted_fuel_qty
-load(paste0(proc_data, "/siec_to_ipcc.RData"))                      # not needed here but ok
-load(paste0(proc_data, "/cn8digit_codes_for_fossil_fuels.RData"))
 
-# revenue variable name: prefer turnover_VAT, else fallback if present
-aa <- df_annual_accounts_selected_sample_key_variables
-aa_id <- intersect(names(aa), c("vat_ano", "vat"))
-stopifnot(length(aa_id) == 1)
-aa_id <- aa_id[[1]]
+# Keep EUETS emissions as truth to avoid .x/.y confusion
+df_old_raw <- amount_spent_on_fuel_by_firm_year %>%
+  left_join(
+    firm_year_belgian_euets %>%
+      transmute(vat, year, euets_emissions = emissions),
+    by = c("vat_j_ano" = "vat", "year")
+  )
 
-rev_var <- intersect(names(aa), c("turnover_VAT", "revenue", "turnover"))
-if (length(rev_var) == 0) stop("Could not find a revenue variable in annual accounts key variables.")
-rev_var <- rev_var[[1]]
+stopifnot(old_proxy_var %in% names(df_old_raw))
 
-# EUETS id variable name
-euets_id <- intersect(names(firm_year_belgian_euets), c("vat_ano", "vat"))
-stopifnot(length(euets_id) == 1)
-euets_id <- euets_id[[1]]
-
-# ----------------------------
-# 1) Build firm -> NACE mapping (nace5d + nace2d)
-# ----------------------------
-firm_sector <- aa %>%
+df_old <- df_old_raw %>%
   transmute(
-    firm_id = .data[[aa_id]],
-    nace5d = as.character(nace5d),
-    nace2d = substr(gsub("\\D", "", as.character(nace5d)), 1, 2),
-    revenue = as.numeric(.data[[rev_var]])
+    firm_id  = vat_j_ano,
+    year     = year,
+    emissions = euets_emissions,
+    nace5d   = as.character(nace5d),
+    nace2d   = substr(gsub("\\D","", as.character(nace5d)), 1, 2),
+    fuel_proxy = as.numeric(.data[[old_proxy_var]])
   ) %>%
+  filter(
+    emissions > 0,
+    !is.na(fuel_proxy), fuel_proxy > 0,
+    !is.na(nace2d), !is.na(nace5d)
+  )
+
+# OLD regression as you described historically:
+# log(emissions) ~ year FE + nace5d FE + log(old_proxy)
+out_old_nace5d <- run_modelA(
+  df_old %>% transmute(firm_id, year, sector = nace5d, emissions, fuel_proxy),
+  sector_col = "sector"
+)
+old_perf_nace5d <- metrics_only(out_old_nace5d) %>% mutate(which = "OLD_dataset_nace5dFE")
+
+# Also compute OLD dataset with nace2d FE (to isolate FE effect later)
+out_old_nace2d <- run_modelA(
+  df_old %>% transmute(firm_id, year, sector = nace2d, emissions, fuel_proxy),
+  sector_col = "sector"
+)
+old_perf_nace2d <- metrics_only(out_old_nace2d) %>% mutate(which = "OLD_dataset_nace2dFE")
+
+cat("\n=== OLD (amount_spent_on_fuel_by_firm_year) results ===\n")
+print(bind_rows(old_perf_nace5d, old_perf_nace2d))
+
+# ----------------------------
+# DECOMPOSITION (mechanical, no guessing)
+# ----------------------------
+
+# ---- Step 3 support differences: NEW vs OLD (at firm-year level) ----
+keys_new <- df_new %>% distinct(firm_id, year)
+keys_old <- df_old %>% distinct(firm_id, year)
+
+only_old <- anti_join(keys_old, keys_new, by = c("firm_id","year"))
+only_new <- anti_join(keys_new, keys_old, by = c("firm_id","year"))
+overlap  <- inner_join(keys_new, keys_old, by = c("firm_id","year"))
+
+support_summary <- tibble(
+  n_new = nrow(keys_new),
+  n_old = nrow(keys_old),
+  n_overlap = nrow(overlap),
+  n_only_new = nrow(only_new),
+  n_only_old = nrow(only_old)
+)
+
+# ---- Step 1 FE effect holding PROXY+SUPPORT fixed ----
+# Use NEW dataset + NEW proxy, but swap FE between nace2d and nace5d on SAME support.
+# We need nace5d for firms in df_new (pipeline estimation df doesn’t carry it).
+load(paste0(proc_data, "/annual_accounts_selected_sample_key_variables.RData"))
+aa <- df_annual_accounts_selected_sample_key_variables
+aa_id <- intersect(names(aa), c("vat_ano","vat")); stopifnot(length(aa_id)>0); aa_id <- aa_id[[1]]
+
+firm_to_nace5d <- aa %>%
+  transmute(firm_id = .data[[aa_id]], nace5d = as.character(nace5d)) %>%
   distinct()
 
-euets_outcomes <- firm_year_belgian_euets %>%
-  transmute(
-    firm_id = .data[[euets_id]],
-    year = year,
-    emissions = as.numeric(emissions)
-  ) %>%
-  left_join(firm_sector, by = "firm_id")
+df_new_with5d <- df_new %>%
+  left_join(firm_to_nace5d, by = "firm_id") %>%
+  filter(!is.na(nace5d))
 
-# ----------------------------
-# 2) Build importer sets (NEW broad vs OLD strict CN8 list)
-# ----------------------------
-
-# Helper: extract CN8 list robustly from cn8digit_codes_for_fossil_fuels
-stopifnot(exists("cn8digit_codes_for_fossil_fuels"))
-
-cn8_list <- cn8digit_codes_for_fossil_fuels %>%
-  pull(cn_code) %>%
-  as.character() %>%
-  trimws() %>%
-  unique()
-
-# Sanity checks
-stopifnot(all(nchar(cn8_list) == 8))
-
-ef <- ef_weighted_fuel_qty %>%
-  transmute(
-    vat_ano = as.character(vat_ano),
-    year = as.numeric(year),
-    cncode = as.character(cncode),
-    imports_value = as.numeric(imports_value),
-    is_euets = as.integer(is_euets)
-  )
-
-# NEW broad definition: any CN starting 27 excluding 2716
-ef_new <- ef %>%
-  filter(substr(cncode, 1, 2) == "27", substr(cncode, 1, 4) != "2716")
-
-new_importers <- ef_new %>% distinct(vat_ano) %>% pull(vat_ano)
-
-# OLD strict definition: CN in the ex-ante list
-ef_old <- ef %>%
-  filter(cncode %in% cn8_list)
-
-old_importers <- ef_old %>% distinct(vat_ano) %>% pull(vat_ano)
-
-# firm-year own imports totals + EUETS status for importers
-importer_year_totals <- ef %>%
-  group_by(vat_ano, year) %>%
-  summarise(
-    own_imports_value = sum(imports_value, na.rm = TRUE),
-    is_euets = max(is_euets, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-# ----------------------------
-# 3) Build fuel proxies from B2B + own imports
-#    Benchmark: purchases from importers + own imports if importer
-#    Excl EUETS importers: purchases from importers with is_euets==0 + own imports if importer & non-euets
-# ----------------------------
-
-b2b <- df_b2b_selected_sample %>%
-  transmute(
-    supplier_id = as.character(vat_i_ano),
-    buyer_id = as.character(vat_j_ano),
-    year = as.numeric(year),
-    value = as.numeric(corr_sales_ij)
-  )
-
-purchases_from_importers <- function(importer_ids) {
-  b2b %>%
-    filter(supplier_id %in% importer_ids) %>%
-    group_by(buyer_id, year) %>%
-    summarise(purch = sum(value, na.rm = TRUE), .groups = "drop")
-}
-
-build_proxy_pair <- function(importer_ids, label) {
-  # Purchases from importers
-  purch <- purchases_from_importers(importer_ids)
-  
-  # Own imports (if importer)
-  own <- importer_year_totals %>%
-    filter(vat_ano %in% importer_ids) %>%
-    transmute(buyer_id = vat_ano, year, own_imports = own_imports_value, own_is_euets = is_euets)
-  
-  # Benchmark
-  bench <- purch %>%
-    left_join(own, by = c("buyer_id", "year")) %>%
-    mutate(own_imports = ifelse(is.na(own_imports), 0, own_imports),
-           fuel_proxy = purch + own_imports) %>%
-    select(buyer_id, year, fuel_proxy)
-  
-  # Excl EUETS importers: restrict importers to those with is_euets==0 (ever, by firm-year max)
-  non_euets_importers <- importer_year_totals %>%
-    filter(vat_ano %in% importer_ids, is_euets == 0) %>%
-    distinct(vat_ano) %>% pull(vat_ano)
-  
-  purch_ne <- purchases_from_importers(non_euets_importers)
-  
-  own_ne <- importer_year_totals %>%
-    filter(vat_ano %in% non_euets_importers) %>%
-    transmute(buyer_id = vat_ano, year, own_imports = own_imports_value)
-  
-  excl <- purch_ne %>%
-    left_join(own_ne, by = c("buyer_id", "year")) %>%
-    mutate(own_imports = ifelse(is.na(own_imports), 0, own_imports),
-           fuel_proxy = purch + own_imports) %>%
-    select(buyer_id, year, fuel_proxy)
-  
-  list(
-    bench = bench %>% mutate(proxy_def = "benchmark", importer_def = label),
-    excl  = excl  %>% mutate(proxy_def = "exclude_euets_importers", importer_def = label)
-  )
-}
-
-proxy_new <- build_proxy_pair(new_importers, "NEW_broad_ch27")
-proxy_old <- build_proxy_pair(old_importers, "OLD_strict_cn8list")
-
-# ----------------------------
-# 4) Utilities: sample filters + LOFO runner + metrics
-# ----------------------------
-
-summarise_perf <- function(df_pred) {
-  # Same definitions you used earlier
-  err <- df_pred$pred - df_pred$emissions
-  sst <- sum((df_pred$emissions - mean(df_pred$emissions, na.rm = TRUE))^2, na.rm = TRUE)
-  sse <- sum(err^2, na.rm = TRUE)
-  
-  tibble(
-    nRMSE = sqrt(mean(err^2, na.rm = TRUE)) / sd(df_pred$emissions, na.rm = TRUE),
-    MAPD = mean(abs(err / df_pred$emissions), na.rm = TRUE),
-    R2_LOO = 1 - sse / sst,
-    Rho_Spearman = cor(df_pred$emissions, df_pred$pred, method = "spearman", use = "complete.obs"),
-    n_obs = nrow(df_pred),
-    n_firms = n_distinct(df_pred$firm_id)
-  )
-}
-
-apply_sector_threshold <- function(df, sector_var = c("nace5d", "nace2d"), min_firms = 2) {
-  sector_var <- match.arg(sector_var)
-  df1 <- df %>%
-    mutate(sector = as.character(.data[[sector_var]])) %>%
-    filter(!is.na(sector))
-  
-  keep <- df1 %>%
-    group_by(sector) %>%
-    summarise(n_firms = n_distinct(firm_id), .groups = "drop") %>%
-    filter(n_firms >= min_firms) %>%
-    pull(sector)
-  
-  df1 %>% filter(sector %in% keep)
-}
-
-# LOFO runner:
-# - uses fixest
-# - optionally includes log(revenue)
-# - optionally includes sector FE
-# - optionally emulates the "smear bug": for excl model, reuse smear from benchmark model (within fold)
-run_lofo <- function(df,
-                     include_sector_fe = TRUE,
-                     include_revenue = FALSE,
-                     smear_bug = FALSE,
-                     sector_var = c("nace5d", "nace2d")) {
-  
-  sector_var <- match.arg(sector_var)
-  
-  # Base filters consistent with your old script
-  df0 <- df %>%
-    filter(emissions > 0,
-           !is.na(fuel_proxy),
-           fuel_proxy > 0) %>%
-    mutate(
-      year_factor = factor(year),
-      sector_factor = factor(.data[[sector_var]])
-    )
-  
-  if (include_revenue) {
-    df0 <- df0 %>%
-      filter(!is.na(revenue), revenue > 0)
-  }
-  
-  firms <- unique(df0$firm_id)
-  out <- vector("list", length(firms))
-  
-  for (k in seq_along(firms)) {
-    f <- firms[[k]]
-    train <- df0 %>% filter(firm_id != f)
-    test  <- df0 %>% filter(firm_id == f)
-    
-    # Build formula
-    rhs <- "log(fuel_proxy)"
-    if (include_revenue) rhs <- paste0(rhs, " + log(revenue)")
-    
-    if (include_sector_fe) {
-      fml <- as.formula(paste0("log(emissions) ~ ", rhs, " | year_factor + sector_factor"))
-    } else {
-      fml <- as.formula(paste0("log(emissions) ~ ", rhs, " | year_factor"))
-    }
-    
-    fit <- feols(fml, data = train, warn = FALSE)
-    
-    smear <- mean(exp(resid(fit)), na.rm = TRUE)
-    
-    # Smear bug emulation handled outside (we pass the correct smear unless asked)
-    test$pred <- exp(predict(fit, newdata = test)) * smear
-    
-    out[[k]] <- test %>%
-      transmute(firm_id, year, emissions, pred)
-  }
-  
-  preds <- bind_rows(out)
-  list(preds = preds, perf = summarise_perf(preds))
-}
-
-# Smearing bug emulation for the *pair* of models benchmark vs excl:
-# - run benchmark fold model first, keep its smear, then use that smear for excl
-run_lofo_pair_with_bug_option <- function(df_bench, df_excl,
-                                          include_sector_fe = TRUE,
-                                          include_revenue = FALSE,
-                                          smear_bug = FALSE,
-                                          sector_var = c("nace5d", "nace2d")) {
-  sector_var <- match.arg(sector_var)
-  
-  # Harmonize base filters so both models evaluated on their own available sample
-  prep <- function(df) {
-    d <- df %>%
-      filter(emissions > 0,
-             !is.na(fuel_proxy),
-             fuel_proxy > 0) %>%
-      mutate(year_factor = factor(year),
-             sector_factor = factor(.data[[sector_var]]))
-    if (include_revenue) d <- d %>% filter(!is.na(revenue), revenue > 0)
-    d
-  }
-  
-  bench0 <- prep(df_bench)
-  excl0  <- prep(df_excl)
-  
-  # IMPORTANT: to compare apples-to-apples, use intersection of firm-years
-  keys <- inner_join(
-    bench0 %>% transmute(firm_id, year),
-    excl0  %>% transmute(firm_id, year),
-    by = c("firm_id", "year")
-  )
-  
-  bench0 <- bench0 %>% semi_join(keys, by = c("firm_id", "year"))
-  excl0  <- excl0  %>% semi_join(keys, by = c("firm_id", "year"))
-  
-  firms <- sort(unique(keys$firm_id))
-  
-  out_bench <- vector("list", length(firms))
-  out_excl  <- vector("list", length(firms))
-  
-  for (k in seq_along(firms)) {
-    f <- firms[[k]]
-    
-    train_b <- bench0 %>% filter(firm_id != f)
-    test_b  <- bench0 %>% filter(firm_id == f)
-    
-    train_e <- excl0 %>% filter(firm_id != f)
-    test_e  <- excl0 %>% filter(firm_id == f)
-    
-    rhs <- "log(fuel_proxy)"
-    if (include_revenue) rhs <- paste0(rhs, " + log(revenue)")
-    
-    if (include_sector_fe) {
-      fml <- as.formula(paste0("log(emissions) ~ ", rhs, " | year_factor + sector_factor"))
-    } else {
-      fml <- as.formula(paste0("log(emissions) ~ ", rhs, " | year_factor"))
-    }
-    
-    fit_b <- feols(fml, data = train_b, warn = FALSE)
-    smear_b <- mean(exp(resid(fit_b)), na.rm = TRUE)
-    test_b$pred <- exp(predict(fit_b, newdata = test_b)) * smear_b
-    
-    fit_e <- feols(fml, data = train_e, warn = FALSE)
-    smear_e <- mean(exp(resid(fit_e)), na.rm = TRUE)
-    
-    # BUG: reuse smear from benchmark model
-    smear_used <- if (smear_bug) smear_b else smear_e
-    test_e$pred <- exp(predict(fit_e, newdata = test_e)) * smear_used
-    
-    out_bench[[k]] <- test_b %>% transmute(firm_id, year, emissions, pred)
-    out_excl[[k]]  <- test_e %>% transmute(firm_id, year, emissions, pred)
-  }
-  
-  preds_b <- bind_rows(out_bench) %>%
-    distinct(firm_id, year, .keep_all = TRUE)
-  
-  preds_e <- bind_rows(out_excl) %>%
-    distinct(firm_id, year, .keep_all = TRUE)
-  
-  # Hard guard: LOFO must generate exactly one prediction per firm-year
-  stopifnot(nrow(preds_b) == n_distinct(preds_b$firm_id, preds_b$year))
-  stopifnot(nrow(preds_e) == n_distinct(preds_e$firm_id, preds_e$year))
-  
-  list(
-    bench = list(preds = preds_b, perf = summarise_perf(preds_b)),
-    excl  = list(preds = preds_e, perf = summarise_perf(preds_e))
-  )
-}
-
-# ----------------------------
-# 5) Assemble datasets for evaluation
-# ----------------------------
-make_eval_df <- function(proxy_tbl) {
-  euets_outcomes %>%
-    inner_join(proxy_tbl %>% select(buyer_id, year, fuel_proxy), by = c("firm_id" = "buyer_id", "year")) %>%
-    select(firm_id, year, emissions, nace5d, nace2d, revenue, fuel_proxy)
-}
-
-eval_new_bench <- make_eval_df(proxy_new$bench)
-eval_new_excl  <- make_eval_df(proxy_new$excl)
-eval_old_bench <- make_eval_df(proxy_old$bench)
-eval_old_excl  <- make_eval_df(proxy_old$excl)
-
-# ----------------------------
-# 6) Run decomposition grid
-# ----------------------------
-grid <- expand_grid(
-  importer_def = c("OLD_strict_cn8list", "NEW_broad_ch27"),
-  sector_var = c("nace5d", "nace2d"),
-  min_firms = c(2, 3),
-  include_revenue = c(FALSE, TRUE),
-  smear_bug = c(FALSE, TRUE)
+out_new_nace2d <- run_modelA(
+  df_new_with5d %>% transmute(firm_id, year, sector = sector, emissions, fuel_proxy),
+  sector_col = "sector"
+)
+out_new_nace5d <- run_modelA(
+  df_new_with5d %>% transmute(firm_id, year, sector = nace5d, emissions, fuel_proxy),
+  sector_col = "sector"
 )
 
-run_case <- function(importer_def, sector_var, min_firms, include_revenue, smear_bug) {
-  
-  if (importer_def == "OLD_strict_cn8list") {
-    df_b <- eval_old_bench
-    df_e <- eval_old_excl
-  } else {
-    df_b <- eval_new_bench
-    df_e <- eval_new_excl
-  }
-  
-  # apply sector threshold *before* LOFO
-  df_b <- apply_sector_threshold(df_b, sector_var = sector_var, min_firms = min_firms)
-  df_e <- apply_sector_threshold(df_e, sector_var = sector_var, min_firms = min_firms)
-  
-  # run paired LOFO so the smear bug is implemented correctly
-  out <- run_lofo_pair_with_bug_option(
-    df_bench = df_b,
-    df_excl = df_e,
-    include_sector_fe = TRUE,        # your old spec had year+sector FE
-    include_revenue = include_revenue,
-    smear_bug = smear_bug,
-    sector_var = sector_var
-  )
-  
-  tibble(
-    importer_def = importer_def,
-    sector_var = sector_var,
-    min_firms = min_firms,
-    include_revenue = include_revenue,
-    smear_bug = smear_bug,
-    model = c("benchmark", "exclude_euets_importers"),
-    nRMSE = c(out$bench$perf$nRMSE, out$excl$perf$nRMSE),
-    MAPD  = c(out$bench$perf$MAPD,  out$excl$perf$MAPD),
-    R2_LOO = c(out$bench$perf$R2_LOO, out$excl$perf$R2_LOO),
-    Rho_Spearman = c(out$bench$perf$Rho_Spearman, out$excl$perf$Rho_Spearman),
-    n_obs = c(out$bench$perf$n_obs, out$excl$perf$n_obs),
-    n_firms = c(out$bench$perf$n_firms, out$excl$perf$n_firms)
-  )
-}
-
-diagnose_tbl <- purrr::pmap_dfr(
-  grid,
-  ~ run_case(..1, ..2, ..3, ..4, ..5)
+step1_fe_table <- bind_rows(
+  metrics_only(out_new_nace2d) %>% mutate(which = "NEW_support_NEWproxy_nace2dFE"),
+  metrics_only(out_new_nace5d) %>% mutate(which = "NEW_support_NEWproxy_nace5dFE")
 )
 
-# Save
-saveRDS(diagnose_tbl, file.path(RESULTS_DIR, "diagnose_old_vs_new.rds"))
-write_csv(diagnose_tbl, file.path(RESULTS_DIR, "diagnose_old_vs_new.csv"))
+# ---- Step 2 proxy effect holding FE+SUPPORT fixed ----
+# Use OVERLAP support (firm-years present in both datasets), FE fixed to nace2d.
+df_overlap <- overlap %>%
+  left_join(df_new %>% select(firm_id, year, emissions, sector, fuel_proxy_new = fuel_proxy),
+            by = c("firm_id","year")) %>%
+  left_join(df_old %>% select(firm_id, year, fuel_proxy_old = fuel_proxy, nace2d),
+            by = c("firm_id","year"))
 
-# Print a useful view
-cat("\n=== Top 20 by nRMSE (benchmark model) ===\n")
-print(
-  diagnose_tbl %>%
-    filter(model == "benchmark") %>%
-    arrange(nRMSE) %>%
-    slice(1:20)
+# Use pipeline nace2d FE (= sector) for consistency with the pipeline spec.
+df_overlap <- df_overlap %>%
+  filter(!is.na(fuel_proxy_new), fuel_proxy_new > 0,
+         !is.na(fuel_proxy_old), fuel_proxy_old > 0,
+         !is.na(sector))
+
+out_overlap_newproxy <- run_modelA(
+  df_overlap %>% transmute(firm_id, year, sector = sector, emissions, fuel_proxy = fuel_proxy_new),
+  sector_col = "sector"
+)
+out_overlap_oldproxy <- run_modelA(
+  df_overlap %>% transmute(firm_id, year, sector = sector, emissions, fuel_proxy = fuel_proxy_old),
+  sector_col = "sector"
 )
 
-cat("\n=== Top 20 by nRMSE (exclude EUETS importers model) ===\n")
-print(
-  diagnose_tbl %>%
-    filter(model == "exclude_euets_importers") %>%
-    arrange(nRMSE) %>%
-    slice(1:20)
+step2_proxy_table <- bind_rows(
+  metrics_only(out_overlap_newproxy) %>% mutate(which = "OVERLAP_support_nace2dFE_NEWproxy"),
+  metrics_only(out_overlap_oldproxy) %>% mutate(which = "OVERLAP_support_nace2dFE_OLDproxy")
 )
 
-cat("\nSaved:\n")
-cat(" - ", file.path(RESULTS_DIR, "diagnose_old_vs_new.rds"), "\n", sep = "")
-cat(" - ", file.path(RESULTS_DIR, "diagnose_old_vs_new.csv"), "\n", sep = "")
+# ----------------------------
+# Summarize everything in one table
+# ----------------------------
+summary_table <- bind_rows(
+  new_perf %>% mutate(which = "NEW_pipeline_baseline"),
+  old_perf_nace5d,
+  old_perf_nace2d,
+  step1_fe_table,
+  step2_proxy_table
+) %>%
+  select(which, everything())
+
+cat("\n\n============================\n")
+cat("SUMMARY TABLE (copy this)\n")
+cat("============================\n")
+print(summary_table)
+
+cat("\n\n============================\n")
+cat("SUPPORT SUMMARY (NEW vs OLD)\n")
+cat("============================\n")
+print(support_summary)
+
+# Save a bundle for later inspection
+bundle <- list(
+  proxy_name_new = proxy_name_new,
+  old_proxy_var = old_proxy_var,
+  res_row = res_row,
+  new_perf = new_perf,
+  old_perf_nace5d = old_perf_nace5d,
+  old_perf_nace2d = old_perf_nace2d,
+  step1_fe_table = step1_fe_table,
+  step2_proxy_table = step2_proxy_table,
+  support_summary = support_summary,
+  only_old = only_old,
+  only_new = only_new,
+  overlap_keys = overlap
+)
+
+out_file <- file.path(RESULTS_DIR, paste0("old_vs_new_decomposition_", proxy_name_new, ".rds"))
+saveRDS(bundle, out_file)
+cat("\nSaved decomposition bundle to:\n", out_file, "\n")
