@@ -2,54 +2,69 @@
 # 04_collect_results.R
 #
 # PURPOSE:
-#   Loads the proxy-by-model performance table and reports top-performing
-#   proxy definitions for each model (A, B_LOFO, B_LOSO) and each metric:
-#     - nRMSE (min)
-#     - MAPD  (min)
-#     - R2_LOO (max)
-#     - Rho_Spearman (max)
+#   Loads /output/loocv/results/model_comparison_by_proxy.rds and produces
+#   leaderboards for three models across four metrics:
+#     - sector5d: year FE + nace5d FE + log(fuel_proxy)
+#     - sector2d: year FE + nace2d FE + log(fuel_proxy)
+#     - nosector: year FE only      + log(fuel_proxy)
+#
+#   Metrics:
+#     - nRMSE (lower is better)
+#     - MAPD  (lower is better)
+#     - R2_LOO (higher is better)
+#     - Rho_Spearman (higher is better)
 #
 # OUTPUT:
-#   Returns a named list of tibbles you can print / inspect.
+#   Saves:
+#     - /output/loocv/results/leaderboards_sector5d_sector2d_nosector.rds
+#     - /output/loocv/results/leaderboards_sector5d_sector2d_nosector.csv
 ###############################################################################
 
 source(file.path(LOOCV_CODE, "00_config.R"))
 
+library(dplyr)
+library(readr)
+library(tidyr)
+
 res <- readRDS(file.path(RESULTS_DIR, "model_comparison_by_proxy.rds"))
 
-# Detect whether LOSO columns exist
-has_loso <- any(grepl("^B_LOSO_", names(res)))
-
-top_k <- function(df, metric_col, k = 10, decreasing = FALSE) {
-  if (!metric_col %in% names(df)) return(NULL)
-  out <- df %>%
-    arrange(if (decreasing) desc(.data[[metric_col]]) else .data[[metric_col]]) %>%
-    slice(1:k) %>%
-    select(name,
-           starts_with("use_"),
-           starts_with("supplier_"),
-           starts_with("buyer_"),
-           starts_with("emissions_"),
-           starts_with("A_"),
-           starts_with("B_LOFO_"),
-           if (has_loso) starts_with("B_LOSO_") else NULL)
-  out
+topk <- function(df, metric_col, k = 20, decreasing = FALSE) {
+  if (decreasing) df %>% arrange(desc(.data[[metric_col]])) %>% slice(1:k)
+  else df %>% arrange(.data[[metric_col]]) %>% slice(1:k)
 }
 
-make_leaderboards <- function(prefix) {
-  list(
-    top_nRMSE = top_k(res, paste0(prefix, "nRMSE"), k = 10, decreasing = FALSE),
-    top_MAPD  = top_k(res, paste0(prefix, "MAPD"),  k = 10, decreasing = FALSE),
-    top_R2    = top_k(res, paste0(prefix, "R2_LOO"), k = 10, decreasing = TRUE),
-    top_Rho   = top_k(res, paste0(prefix, "Rho_Spearman"), k = 10, decreasing = TRUE)
+make_leaderboards <- function(res, prefix, k = 20) {
+  tibble(
+    model = prefix,
+    metric = c("nRMSE","MAPD","R2_LOO","Rho_Spearman"),
+    top = list(
+      topk(res, paste0(prefix, "_nRMSE"), k = k, decreasing = FALSE),
+      topk(res, paste0(prefix, "_MAPD"),  k = k, decreasing = FALSE),
+      topk(res, paste0(prefix, "_R2_LOO"),k = k, decreasing = TRUE),
+      topk(res, paste0(prefix, "_Rho_Spearman"), k = k, decreasing = TRUE)
+    )
   )
 }
 
-out <- list(
-  ModelA = make_leaderboards("A_"),
-  ModelB_LOFO = make_leaderboards("B_LOFO_")
+lbs <- bind_rows(
+  make_leaderboards(res, "sector5d", k = 20),
+  make_leaderboards(res, "sector2d", k = 20),
+  make_leaderboards(res, "nosector", k = 20)
 )
 
-if (has_loso) out$ModelB_LOSO <- make_leaderboards("B_LOSO_")
+# Save nested version
+saveRDS(lbs, file.path(RESULTS_DIR, "leaderboards_sector5d_sector2d_nosector.rds"))
 
-out
+# Save flattened CSV (one row per proxy per leaderboard)
+lbs_flat <- lbs %>%
+  unnest(top) %>%
+  select(
+    model, metric,
+    name,
+    use_siec_all, supplier_non_euets, buyer_sector_siec, emissions_weighted, supplier_nace_filter,
+    ends_with("_nRMSE"), ends_with("_MAPD"), ends_with("_R2_LOO"), ends_with("_Rho_Spearman"), ends_with("_n_obs")
+  )
+
+write_csv(lbs_flat, file.path(RESULTS_DIR, "leaderboards_sector5d_sector2d_nosector.csv"))
+
+lbs
