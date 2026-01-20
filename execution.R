@@ -47,7 +47,7 @@ source("02_build_proxies.R")
 toc()
 
 # 3) Run LOFO evaluation across proxies (long step)
-tic("STEP 3/4: Run Model A + Model B across proxies")
+tic("STEP 3/4: Run models across proxies")
 source("03_run_lofo_across_proxies.R")
 toc()
 
