@@ -45,7 +45,7 @@ aa_firm_year <- aa %>%
     year = year,
     nace5d = as.character(nace5d),
     nace2d = substr(gsub("\\D", "", as.character(nace5d)), 1, 2),
-    revenue = as.numeric(turnover_VAT)
+    revenue = as.numeric(revenue)
   ) %>%
   distinct()
 
