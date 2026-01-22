@@ -18,6 +18,7 @@ tic("02_build_proxies")
 aux <- load_aux()
 
 grid <- tidyr::expand_grid(
+  fuel_def = c("broad_ch27", "strict_cn8"),
   use_siec_all = c(FALSE, TRUE),
   supplier_non_euets = c(FALSE, TRUE),
   buyer_sector_siec = c(FALSE, TRUE),
@@ -25,9 +26,11 @@ grid <- tidyr::expand_grid(
   supplier_nace_filter = c("none","high","high_medium")
 )
 
+
 make_proxy_name <- function(row) {
   paste0(
     "proxy",
+    "_fuelDef", row$fuel_def,
     "_siecAll", as.integer(row$use_siec_all),
     "_nonEUETS", as.integer(row$supplier_non_euets),
     "_buyerSIEC", as.integer(row$buyer_sector_siec),
@@ -51,18 +54,27 @@ for (k in seq_len(nrow(grid))) {
   t0 <- Sys.time()
   
   mods <- as.list(row)
-  proxy <- build_fuel_proxy(mods, aux) %>%
-    mutate(fuel_proxy = as.numeric(fuel_proxy)) %>% 
-    group_by(buyer_id, year) %>%
-    summarise(fuel_proxy = sum(fuel_proxy, na.rm = TRUE), .groups = "drop")
   
+  proxy <- tryCatch(
+    {
+      build_fuel_proxy(mods, aux) %>%
+        mutate(fuel_proxy = as.numeric(fuel_proxy)) %>% 
+        group_by(buyer_id, year) %>%
+        summarise(fuel_proxy = sum(fuel_proxy, na.rm = TRUE), .groups = "drop")
+    },
+    error = function(e) {
+      message("FAILED proxy: ", nm)
+      message("mods = ", paste0(names(mods), "=", unlist(mods), collapse = ", "))
+      stop(e)
+    }
+  )
+
   # ---- Complete proxy on full buyer-year universe ----
-  buyer_year_universe <- aux$aux_b2b_minimal %>%
+  buyer_year_universe <- aux$b2b %>%
     distinct(buyer_id, year)
   
   proxy <- buyer_year_universe %>%
     left_join(proxy, by = c("buyer_id","year")) %>%
-    mutate(fuel_proxy = coalesce(fuel_proxy, 0))
   
   saveRDS(list(name = nm, mods = mods, proxy = proxy), out_path)
   
