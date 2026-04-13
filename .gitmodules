@@ -1,0 +1,3 @@
+[submodule "paper"]
+	path = paper
+	url = https://github.com/gjardad/carbon_policy_in_networks_paper.git
