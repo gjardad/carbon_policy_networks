@@ -1,0 +1,80 @@
+instrument_name,type,start_date,jurisdiction,region,economy_income_group,main_price_rate_usd,share_ghg_covered_pct,govt_revenue_2024
+Albania carbon tax,Carbon tax,2010,Albania,Europe & Central Asia,Upper middle income,13.7,73,
+Alberta TIER,ETS,2007,Canada,North America,High income,66.2,59,412 million
+Andorra carbon tax,Carbon tax,2022,Andorra,Europe & Central Asia,High income,32.4,95,
+Argentina carbon tax,Carbon tax,2018,Argentina,Latin America & Caribbean,Upper middle income,5.3,38,225 million
+Australia safeguard mechanism,ETS,2023,Australia,East Asia & Pacific,High income,21.8,26,
+Austria ETS,ETS,2022,Austria,Europe & Central Asia,High income,48.5,36,1264 million
+British Columbia OBPS,ETS,2016,Canada,North America,High income,66.2,26,
+Beijing pilot ETS,ETS,2013,China,East Asia & Pacific,Upper middle income,12.2,17,1 million
+California cap and trade,ETS,2012,United States,North America,High income,29.3,76,4401 million
+Canada federal OBPS,ETS,2019,Canada,North America,High income,66.2,3,
+Chile carbon tax,Carbon tax,2017,Chile,Latin America & Caribbean,High income,5.0,55,140 million
+China national ETS,ETS,2021,China,East Asia & Pacific,Upper middle income,11.8,51,
+Chongqing pilot ETS,ETS,2014,China,East Asia & Pacific,Upper middle income,5.5,14,3 million
+Colima carbon tax,Carbon tax,2025,Mexico,Latin America & Caribbean,Upper middle income,27.8,17,
+Colombia carbon tax,Carbon tax,2017,Colombia,Latin America & Caribbean,Upper middle income,6.5,20,133 million
+Colorado GHG crediting trading system,ETS,2023,United States,North America,High income,,3,
+Denmark carbon tax,Carbon tax,1992,Denmark,Europe & Central Asia,High income,108.4,64,503 million
+Durango carbon tax,Carbon tax,2023,Mexico,Latin America & Caribbean,Upper middle income,4.9,34,6 million
+Estonia carbon tax,Carbon tax,2000,Estonia,Europe & Central Asia,High income,27.0,10,2 million
+EU ETS,ETS,2005,European Union,Europe & Central Asia,High income,70.4,40,41703 million
+Finland carbon tax,Carbon tax,1990,Finland,Europe & Central Asia,High income,66.9,95,1375 million
+France carbon tax,Carbon tax,2014,France,Europe & Central Asia,High income,48.1,47,7844 million
+Fujian pilot ETS,ETS,2016,China,East Asia & Pacific,Upper middle income,4.3,20,
+Germany ETS,ETS,2021,Germany,Europe & Central Asia,High income,,39,13933 million
+Guanajuato carbon tax,Carbon tax,2023,Mexico,Latin America & Caribbean,Upper middle income,4.9,40,
+Guangdong pilot ETS,ETS,2013,China,East Asia & Pacific,Upper middle income,5.3,4,
+Hubei pilot ETS,ETS,2014,China,East Asia & Pacific,Upper middle income,5.4,20,
+Hungary carbon tax,Carbon tax,2004,Hungary,Europe & Central Asia,High income,38.8,43,182 million
+Iceland carbon tax,Carbon tax,2010,Iceland,Europe & Central Asia,High income,60.1,37,54 million
+Indonesia ETS,ETS,2023,Indonesia,East Asia & Pacific,Upper middle income,0.7,24,
+Ireland carbon tax,Carbon tax,2010,Ireland,Europe & Central Asia,High income,64.5,34,1111 million
+Israel carbon tax,Carbon tax,2024,Israel,Middle East & North Africa,High income,15.6,78,
+Japan carbon tax,Carbon tax,2012,Japan,East Asia & Pacific,High income,1.9,80,1452 million
+Kazakhstan ETS,ETS,2013,Kazakhstan,Europe & Central Asia,Upper middle income,,43,
+Korea ETS,ETS,2015,Korea Rep.,East Asia & Pacific,High income,,17,
+Latvia carbon tax,Carbon tax,2004,Latvia,Europe & Central Asia,High income,16.2,15,8 million
+Liechtenstein carbon tax,Carbon tax,2008,Liechtenstein,Europe & Central Asia,High income,36.0,72,9 million
+Luxembourg carbon tax,Carbon tax,2021,Luxembourg,Europe & Central Asia,High income,48.5,65,305 million
+Massachusetts ETS,ETS,2018,United States,North America,High income,,3,90 million
+Mexico carbon tax,Carbon tax,2014,Mexico,Latin America & Caribbean,Upper middle income,,4,471 million
+Mexico City carbon tax,Carbon tax,2025,Mexico,Latin America & Caribbean,Upper middle income,,3,
+Mexico ETS,ETS,2023,Mexico,Latin America & Caribbean,Upper middle income,,,,
+Montenegro ETS,ETS,2021,Montenegro,Europe & Central Asia,Upper middle income,25.9,37,
+Morelos carbon tax,Carbon tax,2025,Mexico,Latin America & Caribbean,Upper middle income,12.3,31,
+Netherlands carbon tax,Carbon tax,2021,Netherlands,Europe & Central Asia,High income,94.8,12,
+New Brunswick OBPS,ETS,2021,Canada,North America,High income,,54,
+New Zealand ETS,ETS,2008,New Zealand,East Asia & Pacific,High income,32.0,49,293 million
+Newfoundland and Labrador PSS,ETS,2019,Canada,North America,High income,66.2,26,0.4 million
+Norway carbon tax,Carbon tax,1991,Norway,Europe & Central Asia,High income,133.9,65,1876 million
+Nova Scotia OBPS,ETS,2019,Canada,North America,High income,,36,13 million
+Ontario EPS,ETS,2022,Canada,North America,High income,66.2,26,
+Oregon ETS,ETS,2021,United States,North America,High income,,48,
+Poland carbon tax,Carbon tax,1990,Poland,Europe & Central Asia,High income,0.1,24,7 million
+Portugal carbon tax,Carbon tax,2015,Portugal,Europe & Central Asia,High income,72.7,40,573 million
+Quebec cap and trade,ETS,2013,Canada,North America,High income,41.5,70,1050 million
+Queretaro carbon tax,Carbon tax,2022,Mexico,Latin America & Caribbean,Upper middle income,32.8,18,
+Regional Greenhouse Gas Initiative,ETS,2009,United States,North America,High income,23.3,14,1456 million
+Saitama ETS,ETS,2011,Japan,East Asia & Pacific,High income,1.0,,
+San Luis Potosi carbon tax,Carbon tax,2024,Mexico,Latin America & Caribbean,Upper middle income,,68,1 million
+Shanghai pilot ETS,ETS,2013,China,East Asia & Pacific,Upper middle income,,17,
+Shenzhen pilot ETS,ETS,2013,China,East Asia & Pacific,Upper middle income,6.5,37,
+Singapore carbon tax,Carbon tax,2019,Singapore,East Asia & Pacific,High income,18.6,71,150 million
+Slovenia carbon tax,Carbon tax,2023,Slovenia,Europe & Central Asia,High income,33.3,46,175 million
+Spain carbon tax,Carbon tax,2014,Spain,Europe & Central Asia,High income,16.0,4,22 million
+South Africa carbon tax,ETS,2019,South Africa,Sub-Saharan Africa,Upper middle income,,82,92 million
+State of Mexico carbon tax,Carbon tax,2025,Mexico,Latin America & Caribbean,Upper middle income,2.8,,14 million
+Sweden carbon tax,Carbon tax,1991,Sweden,Europe & Central Asia,High income,144.6,40,2305 million
+Switzerland carbon tax,Carbon tax,2008,Switzerland,Europe & Central Asia,High income,133.5,33,1098 million
+Switzerland ETS,ETS,2008,Switzerland,Europe & Central Asia,High income,44.7,13,50 million
+Tamaulipas carbon tax,Carbon tax,2022,Mexico,Latin America & Caribbean,Upper middle income,,48,82 million
+Tianjin pilot ETS,ETS,2013,China,East Asia & Pacific,Upper middle income,5.4,36,
+Tokyo cap and trade,ETS,2010,Japan,East Asia & Pacific,High income,,19,
+UK Carbon Price Support,Carbon tax,2013,United Kingdom,Europe & Central Asia,High income,23.2,,872 million
+UK ETS,ETS,2021,United Kingdom,Europe & Central Asia,High income,57.2,27,3250 million
+Ukraine carbon tax,Carbon tax,2011,Ukraine,Europe & Central Asia,Upper middle income,0.7,32,30 million
+Uruguay CO2 tax,Carbon tax,2022,Uruguay,Latin America & Caribbean,High income,158.8,5,302 million
+Washington CCA,ETS,2023,United States,North America,High income,50.0,71,811 million
+Yucatan carbon tax,Carbon tax,2022,Mexico,Latin America & Caribbean,Upper middle income,15.0,32,6 million
+Zacatecas carbon tax,Carbon tax,2017,Mexico,Latin America & Caribbean,Upper middle income,12.3,50,16 million
