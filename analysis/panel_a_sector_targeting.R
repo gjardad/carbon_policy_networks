@@ -75,24 +75,23 @@ n_ets <- nrow(inforce)
 
 panel_a <- ggplot(activity_shares, aes(x = share, y = activity_label)) +
   geom_col(fill = "grey60", width = 0.7) +
-  geom_text(aes(label = paste0(round(share), "%")),
-            hjust = -0.2, size = 3.5, color = "grey30") +
   scale_x_continuous(
-    expand = expansion(mult = c(0, 0.15)),
+    expand = expansion(mult = c(0, 0.05)),
     labels = function(x) paste0(x, "%"),
     breaks = seq(0, 100, 20)
   ) +
   labs(
-    x = paste0("Share of in-force ETS instruments (N = ", n_ets, ")"),
+    x = "Share of CPP instruments",
     y = NULL
   ) +
   theme_minimal(base_size = 13) +
   theme(
     panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_blank(),
     panel.grid.minor = element_blank(),
-    axis.title.x = element_text(size = 13, margin = margin(t = 10)),
-    axis.text.y = element_text(size = 11),
-    axis.text.x = element_text(size = 11)
+    axis.title.x = element_text(size = 15, margin = margin(t = 15)),
+    axis.text.y = element_text(size = 13),
+    axis.text.x = element_text(size = 13)
   )
 
 ggsave(file.path(output_dir, "panel_a_sector_targeting.pdf"),
