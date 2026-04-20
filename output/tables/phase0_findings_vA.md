@@ -264,7 +264,33 @@ These findings are consistent with:
 - Martinsson et al. (2024): highest emitters have the lowest carbon pricing elasticities, reducing the scope for competitive reallocation
 - Mulier et al. (2024): cost compensation for energy-intensive firms weakens the carbon price signal, further dampening reallocation incentives
 
-An open question is whether the story changes when focusing on the **post-2017 period**, when the MSR reform made the ETS substantially more binding (EUA prices rose from ~5 to 50+ EUR). All of the analysis above pools across the full 2005-2021 period, including years when the ETS was essentially not binding. A period-specific analysis could reveal reallocation effects that are diluted in the full-period averages.
+### Does the story change after the 2017 MSR reform?
+
+We tested whether the MSR reform — which made the ETS substantially more binding (EUA prices rose from ~5 to 50+ EUR) — produced a visible shift in within-sector output shares. Following De Jonghe et al. (2021) and Mulier et al. (2024), we classify ETS firms by their pre-MSR allowance shortage intensity (2013-2016 average of max(emissions - free allowances, 0) / revenue) and track their output shares over time.
+
+**Three versions of the eyeball test:**
+
+1. **Binary split within NACE 2-digit:** High-exposure firms' share drops ~17% post-2017. But this largely reflects between-subsector composition (mixing cement producers with concrete manufacturers within the same 2-digit code). When redone at NACE 4-digit, the divergence mostly disappears.
+
+2. **Binary split within NACE 4-digit:** Both lines stay close to 1.0 after 2017, with the high-exposure line slightly below but well within pre-period volatility. No visible break.
+
+3. **Terciles of shortage intensity (across the whole economy):** Clear monotonic gradient — high-exposure firms lose share, low-exposure firms gain. But this is a secular trend starting in 2005, well before carbon pricing was binding. The 2017 reform does not produce a visible acceleration.
+
+4. **Within-sector terciles (the definitive test):** Each firm's output share is computed within its NACE 4-digit sector, then averaged across sectors by tercile. This isolates pure within-sector reallocation. Result: the same long-run convergence pattern. High-exposure firms have been gradually losing within-sector share since 2005. **The post-2017 period shows no break — if anything, the divergence slowed down after the MSR reform.**
+
+**Script:** `analysis/phase1a_output_share_by_exposure.R`
+
+### Summary of all reallocation tests
+
+| Test | Level | Finding |
+|------|-------|---------|
+| GK decomposition (Phase 0) | Within NACE 2d, ETS firms | Within-sector reallocation ≈ 0 |
+| OP covariance vs. carbon cost | Sector-year panel | No correlation |
+| ETS vs. non-ETS share | NACE 4d, full panel | No correlation with carbon cost |
+| Binary split, NACE 4d | Within NACE 4d, ETS firms | Flat post-2017 |
+| Terciles, within-sector | Within NACE 4d, ETS firms | Long-run trend, no post-2017 break |
+
+The reallocation channel is inactive in Belgium. Carbon pricing induced within-firm abatement but did not shift market shares within sectors, even after prices became meaningful in 2017. The long-run trend of high-exposure firms losing within-sector share predates carbon pricing and likely reflects other factors (productivity differences, structural transformation).
 
 ---
 
