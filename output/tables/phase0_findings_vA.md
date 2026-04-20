@@ -1,4 +1,4 @@
-# Phase 0 Findings: Decomposition of Belgian ETS Emission Changes, 2005-2022
+# Phase 0 Findings: Decomposition of Belgian ETS Emission Changes, 2005-2021
 
 ## Version A — ETS firms only
 
@@ -141,12 +141,72 @@ The fixed-base approach requires firms to be present in both 2005 and year t. Th
 
 ---
 
+## Sector-level heterogeneity
+
+The aggregate zero for within-sector reallocation masks substantial heterogeneity across sectors. Using the fixed-base (2005) decomposition applied separately to each NACE 2-digit sector through 2021:
+
+| NACE | Sector | Em. share (2005) | Reallocation (pp) | Technique (pp) | Direction |
+|------|--------|-----------------|-------------------|----------------|-----------|
+| 35 | Electricity | 36% | +25 | -24 | Toward dirtier plants |
+| 24 | Basic metals (steel) | 22% | **-17** | -90 | Toward cleaner firms |
+| 23 | Non-metallic minerals (cement, glass) | 18% | **-19** | -28 | Toward cleaner firms |
+| 19 | Petroleum refining | 11% | +27 | +40 | Toward dirtier refineries |
+| 20 | Chemicals | 9% | +46 | +16 | Toward dirtier firms |
+
+Steel (24) and cement/glass (23) show large reallocation toward cleaner firms. Electricity (35) and petroleum (19) show the opposite. Chemicals (20) also show dirtier firms gaining share. These roughly cancel in aggregate.
+
+**Important caveat:** Most sectors have fewer than 30 firms, and some drop to 2-3 survivors by 2021. The reallocation numbers for small sectors are driven by individual firm movements and should not be over-interpreted.
+
+---
+
+## Melitz-Polanec decomposition (entry and exit)
+
+We also implemented the dynamic Olley-Pakes decomposition from Melitz & Polanec (2015, RAND), which cleanly handles firms entering and exiting the sample by splitting them into survivors, entrants, and exiters.
+
+**Key finding:** Entry and exit contributions are consistently small — in the single digits as a percentage of base-year emission intensity across all rolling 5-year windows. The changing sample composition is not driving the results.
+
+**Limitation:** The Melitz-Polanec decomposition splits the aggregate into an unweighted mean (within-firm) plus an Olley-Pakes covariance (reallocation). With highly skewed emission intensities (some firms at 0.00001, others at 0.03), the unweighted mean is dominated by a handful of high-intensity firms. When one of these firms' intensity changes dramatically, the within-firm and reallocation terms swing wildly in opposite directions. This makes the decomposition unstable for horizons longer than ~5 years.
+
+For this reason, the Grossman-Krueger decomposition (which works with share-weighted quantities throughout) is more reliable for our data. We use the Melitz-Polanec decomposition only to confirm that entry/exit are quantitatively unimportant.
+
+**Script:** `analysis/phase0_melitz_polanec.R`
+
+---
+
+## Is within-sector reallocation correlated with carbon cost exposure?
+
+If carbon pricing drives within-sector reallocation, we should see more reallocation in sector-years where carbon costs actually bite. We test this by correlating the year-on-year change in the Olley-Pakes covariance (our within-sector reallocation measure) with two measures of carbon cost exposure at the sector-year level:
+
+1. **Carbon cost share:** (allowance shortage × EUA price) / sector revenue
+2. **Percent of emissions priced:** allowance shortage / total emissions
+
+**Result: no correlation.**
+
+| Specification | Measure | Coefficient | t-stat | p-value |
+|--------------|---------|------------|--------|---------|
+| OLS | Carbon cost share | 4.53 | 0.54 | 0.59 |
+| Sector + Year FE | Carbon cost share | 7.58 | 0.60 | 0.55 |
+| OLS | % emissions priced | -0.0001 | -0.06 | 0.95 |
+| Sector + Year FE | % emissions priced | -0.0016 | -0.32 | 0.75 |
+
+Raw correlations: 0.039 (carbon cost share) and -0.005 (% emissions priced). The scatter plot is flat — sector-years with higher carbon cost exposure show no more reallocation toward cleaner firms than sector-years with low exposure.
+
+This null result reinforces the aggregate finding: within-sector reallocation among ETS firms is not driven by carbon pricing. Firms abate in place regardless of how much carbon costs bite in their sector.
+
+**Caveat:** 195 sector-year observations across 16 sectors with 3+ firms. Limited statistical power, especially for within-sector variation. EUA prices are approximate annual averages.
+
+**Script:** Standalone analysis (to be integrated into `analysis/phase0_melitz_polanec.R`).
+
+---
+
 ## Interpretation
 
 This decomposition is **purely mechanical** — it attributes emission changes to accounting channels but says nothing about what *caused* those changes. The between-sector reallocation could reflect carbon policy, trade shocks, demand shifts, or technology trends. The within-firm abatement could be driven by carbon pricing, energy prices, regulation, or autonomous technical change. Causal attribution requires the identification strategies in Phase 1 and Phase 2.
 
-The finding that within-sector reallocation is essentially zero is consistent with Colmer, Martin, Muuls & Wagner (2024), who find that French ETS firms reduced emissions without any contraction in economic activity. If firms can abate without losing competitiveness, there is no cost differential to drive within-sector reallocation.
+However, the additional finding that within-sector reallocation is **uncorrelated with carbon cost exposure** across sector-years provides suggestive (though not causal) evidence that carbon pricing is not driving reallocation among ETS firms. This is consistent with Colmer, Martin, Muuls & Wagner (2024), who find that French ETS firms reduced emissions without any contraction in economic activity.
+
+An important limitation of Version A is that it only includes ETS firms. Non-ETS firms competing in the same sectors are invisible. If there is a reallocation channel, it may operate between ETS and non-ETS firms within the same sector — ETS firms losing market share to unregulated competitors. Version B (with imputed emissions for non-ETS firms) is needed to test this.
 
 ---
 
-*Generated by `analysis/phase0_decomposition.R`, Version A (ETS-only). April 2026.*
+*Generated by `analysis/phase0_decomposition.R` and `analysis/phase0_melitz_polanec.R`, Version A (ETS-only). April 2026.*
