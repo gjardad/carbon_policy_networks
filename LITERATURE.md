@@ -42,6 +42,16 @@
 
 ---
 
+### Martin, Muuls & Stoerk (2024) — "The Effects of Carbon Pricing along the Production Network"
+
+**Key idea:** Uses Belgian B2B VAT transaction data to map the full domestic production network and study how EU ETS carbon pricing propagates to indirectly connected firms. Shift-share design exploiting the 2015-2022 ETS price increase. No significant effects on value-added, employment, investment, or prices. But significant supply chain restructuring: firms with ETS-exposed suppliers diversify toward new suppliers (β = 0.018***) and new clients (β = 0.028***). Direct ETS regulation increases clean patenting (β = 0.082***), and firms selling to ETS-regulated clients also increase clean patenting (β = 0.007**), suggesting demand-pull for green inputs.
+
+**Relevance to this project:** The closest paper to our research agenda — same Belgian NBB data (B2B, Annual Accounts, EUTL, PATSTAT), same focus on production network effects of carbon pricing. Their shift-share approach (fixing 2012 network exposure × ETS price change) is directly applicable. Key finding that supply chain restructuring and clean innovation propagate through the network while aggregate economic outcomes do not deteriorate is central to our framing. Work-in-progress status means there is room to build on/complement their analysis.
+
+**Notes/thoughts:** [Full notes](articles/split_wp467en/notes.md)
+
+---
+
 ### De Jonghe, Mulier & Schepens (2021) — "Climate Regulation, Firm Emissions, and Green Takeovers"
 
 **Key idea:** After the 2017 EU ETS price increase, polluting firms improve emission efficiency and become more likely to acquire green firms within the ETS area. No evidence of carbon leakage through cross-border M&A. Free allowance allocation affects response strength. Precursor to Mulier et al. (2024) — same sample, identification, and data sources.
