@@ -29,18 +29,15 @@
 rm(list = ls())
 suppressPackageStartupMessages(library(dplyr))
 
-# ---- Paths ----
-if (tolower(Sys.info()[["user"]]) == "jardang") {
-  nbb_data     <- "X:/Documents/JARDANG/NBB_data"
-  project_root <- "X:/Documents/JARDANG/carbon_policy_networks"
-} else {
-  nbb_data     <- "c:/Users/jota_/Documents/NBB_data"
-  project_root <- "c:/Users/jota_/Documents/carbon_policy_networks"
-}
-proc_data <- file.path(nbb_data, "processed")
-out_data  <- file.path(project_root, "data", "processed")
-dir.create(out_data, recursive = TRUE, showWarnings = FALSE)
+# ---- Paths (centralized in utils/paths.R) ----
+.path_candidates <- c(
+  "C:/Users/jardang/Documents/carbon_policy_networks/utils/paths.R",
+  "c:/Users/jota_/Documents/carbon_policy_networks/utils/paths.R")
+.p <- .path_candidates[file.exists(.path_candidates)]
+if (length(.p) == 0L) stop("Cannot locate utils/paths.R; add a candidate.")
+source(.p[1])
 source(file.path(project_root, "utils", "sector_conventions.R"))
+rm(.path_candidates, .p)
 
 YEARS     <- 2005:2021
 ALLOC_DIR <- file.path(proc_data, "allocation_glo_balanced")

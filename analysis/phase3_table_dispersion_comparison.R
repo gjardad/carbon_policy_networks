@@ -21,15 +21,18 @@
 rm(list = ls())
 suppressPackageStartupMessages(library(dplyr))
 
-if (tolower(Sys.info()[["user"]]) == "jardang") {
-  project_root <- "X:/Documents/JARDANG/carbon_policy_networks"
-} else {
-  project_root <- "c:/Users/jota_/Documents/carbon_policy_networks"
-}
-proc    <- file.path(project_root, "data", "processed")
+# ---- Paths (centralized in utils/paths.R) ----
+.path_candidates <- c(
+  "C:/Users/jardang/Documents/carbon_policy_networks/utils/paths.R",
+  "c:/Users/jota_/Documents/carbon_policy_networks/utils/paths.R")
+.p <- .path_candidates[file.exists(.path_candidates)]
+if (length(.p) == 0L) stop("Cannot locate utils/paths.R; add a candidate.")
+source(.p[1])
+source(file.path(project_root, "utils", "sector_conventions.R"))
+proc    <- out_data  # local alias for input/output of project intermediates
 out_dir <- file.path(project_root, "output", "tables")
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-source(file.path(project_root, "utils", "sector_conventions.R"))
+rm(.path_candidates, .p)
 
 TOP_N <- 10L
 

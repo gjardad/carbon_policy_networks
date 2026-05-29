@@ -39,16 +39,15 @@
 rm(list = ls())
 suppressPackageStartupMessages({ library(dplyr); library(Matrix) })
 
-if (tolower(Sys.info()[["user"]]) == "jardang") {
-  nbb_data     <- "X:/Documents/JARDANG/NBB_data"
-  project_root <- "X:/Documents/JARDANG/carbon_policy_networks"
-} else {
-  nbb_data     <- "c:/Users/jota_/Documents/NBB_data"
-  project_root <- "c:/Users/jota_/Documents/carbon_policy_networks"
-}
-proc_data <- file.path(nbb_data, "processed")
-out_data  <- file.path(project_root, "data", "processed")
+# ---- Paths (centralized in utils/paths.R) ----
+.path_candidates <- c(
+  "C:/Users/jardang/Documents/carbon_policy_networks/utils/paths.R",
+  "c:/Users/jota_/Documents/carbon_policy_networks/utils/paths.R")
+.p <- .path_candidates[file.exists(.path_candidates)]
+if (length(.p) == 0L) stop("Cannot locate utils/paths.R; add a candidate.")
+source(.p[1])
 source(file.path(project_root, "utils", "sector_conventions.R"))
+rm(.path_candidates, .p)
 
 # ---- Parameters ----
 SCENARIOS     <- c("s1", "s2")

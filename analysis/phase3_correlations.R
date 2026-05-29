@@ -24,13 +24,16 @@
 rm(list = ls())
 suppressPackageStartupMessages(library(dplyr))
 
-if (tolower(Sys.info()[["user"]]) == "jardang") {
-  project_root <- "X:/Documents/JARDANG/carbon_policy_networks"
-} else {
-  project_root <- "c:/Users/jota_/Documents/carbon_policy_networks"
-}
-proc <- file.path(project_root, "data", "processed")
+# ---- Paths (centralized in utils/paths.R) ----
+.path_candidates <- c(
+  "C:/Users/jardang/Documents/carbon_policy_networks/utils/paths.R",
+  "c:/Users/jota_/Documents/carbon_policy_networks/utils/paths.R")
+.p <- .path_candidates[file.exists(.path_candidates)]
+if (length(.p) == 0L) stop("Cannot locate utils/paths.R; add a candidate.")
+source(.p[1])
 source(file.path(project_root, "utils", "sector_conventions.R"))
+proc <- out_data  # local alias used in this script's body
+rm(.path_candidates, .p)
 
 cat("== phase3_correlations ==\n")
 
