@@ -1,0 +1,9 @@
+"scenario","granularity","measure_type","n_cells","mean_spearman","mean_pearson_log"
+"s1","4d","intensity",28,0.872,0.875
+"s1","2d","intensity",70,0.93,0.925
+"s1","4d","levels",28,0.902,0.909
+"s1","2d","levels",70,0.912,0.939
+"s2","4d","intensity",1437,0.91,0.918
+"s2","2d","intensity",653,0.907,0.911
+"s2","4d","levels",1437,0.844,0.851
+"s2","2d","levels",653,0.851,0.853
