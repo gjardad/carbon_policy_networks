@@ -1,0 +1,232 @@
+###############################################################################
+# analysis/phase3_build_upstream_emissions.R
+#
+# PURPOSE
+#   Cost-normalized network build of firm-level emission intensities, for each
+#   scenario (S1 zero / S2 GLO) and year. Adapted from
+#   facts-emissions-across-network/analysis/build_upstream_emissions_glo.R,
+#   stripped to a single point estimate (no uncertainty draws), with a 4-digit
+#   decomposition added and outputs expressed as cost-based INTENSITIES.
+#
+# DEFINITIONS (cost normalization; see plan "Definitions"):
+#   total_cost_i = wages + domestic B2B inputs + imports + carbon cost
+#   Omega_{ij}   = expenditure_ij / total_cost_i           (row sums < 1)
+#   e_cost_i     = z_i / total_cost_i                       (direct EI, cost)
+#   nu_i = (I-Omega)^{-1} e_cost                            (network-adj EI, incl direct)
+#   u_i  = nu_i - e_cost_i = (Omega %*% nu)_i               (upstream part)
+#   across_g_i = (Omega %*% nu_bar_g)_i ; within_g_i = u_i - across_g_i
+#     (nu_bar_g = mean nu over supplier's sector g; g in {2d, 4d})
+#   => nu = e_cost + across_g + within_g exactly (verify to machine precision).
+#
+# SCENARIO emission vector z (tonnes CO2):
+#   S2: alloc scope1 (all sources: ets + imputed + pre_ets)
+#   S1: alloc scope1 where source == "ets" only (non-ETS = 0)
+#
+# INPUT (NBB processed):
+#   allocation_glo_balanced/alloc_YYYY.RData, b2b_selected_sample.RData,
+#   firm_year_belgian_euets.RData, annual_accounts_selected_sample_key_variables.RData,
+#   firm_year_total_imports.RData, deployment_panel.RData
+#
+# OUTPUT {PROJ}/data/processed/upstream_emissions_{s1,s2}/firms_YYYY.RData
+#   firms: vat, year, source, nace5d, nace4d, nace2d, total_cost, revenue,
+#          scope1 (z), e_cost, nu, u, across_2d, within_2d, across_4d, within_4d
+#   conv_info, max_rowsum
+#
+# RUNS ON: RMD for real results (full B2B). Locally runs on DOWNSAMPLED B2B for
+#   code validation only (magnitudes meaningless).
+###############################################################################
+
+rm(list = ls())
+suppressPackageStartupMessages({ library(dplyr); library(Matrix) })
+
+if (Sys.info()[["user"]] == "JARDANG") {
+  nbb_data     <- "X:/Documents/JARDANG/NBB_data"
+  project_root <- "X:/Documents/JARDANG/carbon_policy_networks"
+} else {
+  nbb_data     <- "c:/Users/jota_/Documents/NBB_data"
+  project_root <- "c:/Users/jota_/Documents/carbon_policy_networks"
+}
+proc_data <- file.path(nbb_data, "processed")
+out_data  <- file.path(project_root, "data", "processed")
+source(file.path(project_root, "utils", "sector_conventions.R"))
+
+# ---- Parameters ----
+SCENARIOS     <- c("s1", "s2")
+YEARS         <- 2005:2021
+NEUMANN_MAXIT <- 50L
+NEUMANN_TOL   <- 1e-8
+ALLOC_DIR     <- file.path(proc_data, "allocation_glo_balanced")
+
+# Allow a single-year quick validation run: Rscript phase3_build...R 2015 s2
+.args <- commandArgs(trailingOnly = TRUE)
+if (length(.args) >= 1 && .args[1] != "") YEARS     <- as.integer(strsplit(.args[1], ",")[[1]])
+if (length(.args) >= 2 && .args[2] != "") SCENARIOS <- strsplit(.args[2], ",")[[1]]
+
+CARBON_PRICE <- c(
+  "2005" = 25.29, "2006" = 21.53, "2007" =  0.86, "2008" = 25.74,
+  "2009" = 18.41, "2010" = 18.98, "2011" = 18.08, "2012" =  9.49,
+  "2013" =  5.94, "2014" =  7.89, "2015" =  8.52, "2016" =  5.92,
+  "2017" =  6.63, "2018" = 18.55, "2019" = 27.84, "2020" = 27.94,
+  "2021" = 62.25)
+
+neumann_series <- function(A, epsilon, maxit, tol) {
+  m <- as.numeric(epsilon); term <- as.numeric(epsilon)
+  k_final <- 0L; rel_final <- Inf
+  for (k in seq_len(maxit)) {
+    term <- as.numeric(A %*% term); m <- m + term
+    rel_final <- max(abs(term)) / (max(abs(m)) + 1e-15); k_final <- k
+    if (rel_final < tol) break
+  }
+  list(m = m, k = k_final, converged = rel_final < tol, rel_err = rel_final)
+}
+
+cat("== phase3_build_upstream_emissions ==\n")
+cat(sprintf("  user=%s | years=%s | scenarios=%s\n",
+            Sys.info()[["user"]], paste(range(YEARS), collapse="-"),
+            paste(SCENARIOS, collapse=",")))
+
+# ---- Shared data ----
+load(file.path(proc_data, "b2b_selected_sample.RData"))
+b2b <- df_b2b_selected_sample %>% filter(year %in% YEARS)
+rm(df_b2b_selected_sample)
+cat(sprintf("  B2B rows: %d\n", nrow(b2b)))
+
+load(file.path(proc_data, "firm_year_belgian_euets.RData"))
+eutl <- firm_year_belgian_euets %>% filter(year %in% YEARS) %>% select(vat, year, emissions)
+ets_rev <- firm_year_belgian_euets %>% filter(year %in% YEARS) %>%
+  transmute(vat, year, nace5d, revenue)
+rm(firm_year_belgian_euets)
+
+load(file.path(proc_data, "annual_accounts_selected_sample_key_variables.RData"))
+accounts <- df_annual_accounts_selected_sample_key_variables %>%
+  filter(year %in% YEARS) %>%
+  transmute(vat, year, nace5d, wage_bill = pmax(coalesce(wage_bill, 0), 0))
+rm(df_annual_accounts_selected_sample_key_variables)
+
+load(file.path(proc_data, "firm_year_total_imports.RData"))
+if ("vat_ano" %in% names(firm_year_total_imports))
+  firm_year_total_imports <- rename(firm_year_total_imports, vat = vat_ano)
+imports <- firm_year_total_imports %>% filter(year %in% YEARS) %>%
+  select(vat, year, total_imports)
+rm(firm_year_total_imports)
+
+# Revenue + NACE lookup (union of deployment_panel non-ETS and euets ETS firms)
+load(file.path(proc_data, "deployment_panel.RData"))
+firm_chars <- bind_rows(
+    deployment_panel %>% filter(year %in% YEARS) %>% transmute(vat, year, nace5d, revenue),
+    ets_rev
+  ) %>%
+  filter(!is.na(nace5d)) %>%
+  distinct(vat, year, .keep_all = TRUE) %>%
+  mutate(nace2d = make_nace2d(nace5d), nace4d = make_nace4d(nace5d))
+rm(deployment_panel)
+
+# ---- Scenario emission vectors from allocation ----
+load_alloc <- function() {
+  L <- list()
+  for (t in YEARS) {
+    p <- file.path(ALLOC_DIR, sprintf("alloc_%d.RData", t))
+    if (file.exists(p)) { load(p); L[[as.character(t)]] <- year_firms %>% select(vat, year, scope1, source) }
+  }
+  bind_rows(L)
+}
+alloc_all <- load_alloc()
+z_for <- function(scn) if (scn == "s1") filter(alloc_all, source == "ets") else alloc_all
+
+# =============================================================================
+# Build per scenario x year
+# =============================================================================
+for (scn in SCENARIOS) {
+  out_dir <- file.path(out_data, sprintf("upstream_emissions_%s", scn))
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  z_panel <- z_for(scn)
+  conv_all <- list()
+  cat(sprintf("\n-- Scenario %s --\n", toupper(scn)))
+
+  for (t in YEARS) {
+    b2b_t   <- b2b[b2b$year == t, ]
+    if (nrow(b2b_t) == 0) { cat(sprintf("  %d: no B2B, skip\n", t)); next }
+    acc_t   <- accounts[accounts$year == t, ]
+    imp_t   <- imports[imports$year == t, ]
+    eutl_t  <- eutl[eutl$year == t, ]
+    chars_t <- firm_chars[firm_chars$year == t, ]
+    z_t     <- z_panel[z_panel$year == t, ]
+
+    all_vats <- sort(unique(c(b2b_t$vat_i_ano, b2b_t$vat_j_ano)))
+    N <- length(all_vats); vat_idx <- setNames(seq_len(N), all_vats)
+
+    b2b_agg <- b2b_t %>% group_by(vat_i_ano, vat_j_ano) %>%
+      summarise(sales = sum(corr_sales_ij, na.rm = TRUE), .groups = "drop") %>%
+      filter(sales > 0)
+
+    # cost_vec = wages + domestic inputs + imports + carbon cost
+    cost_vec <- rep(1e-6, N)
+    rs <- b2b_agg %>% group_by(vat_j_ano) %>% summarise(d = sum(sales), .groups = "drop")
+    bi <- vat_idx[rs$vat_j_ano]; ok <- !is.na(bi)
+    cost_vec[bi[ok]] <- cost_vec[bi[ok]] + rs$d[ok]
+    ai <- match(acc_t$vat, all_vats); oka <- !is.na(ai) & acc_t$wage_bill > 0
+    cost_vec[ai[oka]] <- cost_vec[ai[oka]] + acc_t$wage_bill[oka]
+    ii <- match(imp_t$vat, all_vats); oki <- !is.na(ii) & !is.na(imp_t$total_imports) & imp_t$total_imports > 0
+    cost_vec[ii[oki]] <- cost_vec[ii[oki]] + imp_t$total_imports[oki]
+    ei <- match(eutl_t$vat, all_vats); oke <- !is.na(ei) & !is.na(eutl_t$emissions) & eutl_t$emissions > 0
+    cost_vec[ei[oke]] <- cost_vec[ei[oke]] + eutl_t$emissions[oke] * CARBON_PRICE[as.character(t)]
+
+    # A[buyer, supplier] = expenditure / total_cost(buyer)
+    row_i <- vat_idx[b2b_agg$vat_j_ano]; col_j <- vat_idx[b2b_agg$vat_i_ano]
+    okij  <- !is.na(row_i) & !is.na(col_j)
+    A <- sparseMatrix(i = row_i[okij], j = col_j[okij],
+                      x = b2b_agg$sales[okij] / cost_vec[row_i[okij]], dims = c(N, N))
+    max_rowsum <- max(rowSums(A))
+    if (max_rowsum >= 1) cat(sprintf("  WARNING %d: max rowsum(A)=%.6f >= 1\n", t, max_rowsum))
+
+    # emission intensity vector e_cost = z / cost
+    eps <- rep(0, N)
+    zi <- match(z_t$vat, all_vats); okz <- !is.na(zi)
+    eps[zi[okz]] <- z_t$scope1[okz] / cost_vec[zi[okz]]
+    source_vec <- rep("none", N); source_vec[zi[okz]] <- z_t$source[okz]
+    scope1_vec <- cost_vec * eps
+
+    ns <- neumann_series(A, eps, NEUMANN_MAXIT, NEUMANN_TOL)
+    nu <- ns$m                      # network-adjusted EI (incl direct), per cost
+    u  <- nu - eps                  # upstream part = A %*% nu
+
+    # sector vectors for decomposition (from firm_chars)
+    cm <- match(all_vats, chars_t$vat)
+    nace2d_vec <- chars_t$nace2d[cm]; nace4d_vec <- chars_t$nace4d[cm]
+    nace5d_vec <- chars_t$nace5d[cm]; rev_vec <- chars_t$revenue[cm]
+
+    decomp <- function(sec_vec) {
+      nb <- nu; ok <- !is.na(sec_vec)
+      if (any(ok)) { sm <- tapply(nu[ok], sec_vec[ok], mean); nb[ok] <- sm[sec_vec[ok]] }
+      across <- as.numeric(A %*% nb)
+      list(across = across, within = u - across)
+    }
+    d2 <- decomp(nace2d_vec); d4 <- decomp(nace4d_vec)
+
+    firms <- data.frame(
+      vat = all_vats, year = t, source = source_vec,
+      nace5d = nace5d_vec, nace4d = nace4d_vec, nace2d = nace2d_vec,
+      total_cost = cost_vec, revenue = rev_vec,
+      scope1 = scope1_vec, e_cost = eps, nu = nu, u = u,
+      across_2d = d2$across, within_2d = d2$within,
+      across_4d = d4$across, within_4d = d4$within,
+      stringsAsFactors = FALSE)
+    firms <- firms[firms$nu > 0, ]
+
+    conv_info <- data.frame(year = t, scenario = scn, n_firms = nrow(firms),
+                            max_rowsum = max_rowsum, k = ns$k,
+                            rel_err = ns$rel_err, converged = ns$converged)
+    conv_all[[as.character(t)]] <- conv_info
+    save(firms, conv_info, max_rowsum,
+         file = file.path(out_dir, sprintf("firms_%d.RData", t)))
+
+    # identity check
+    id_err <- max(abs(firms$nu - (firms$e_cost + firms$across_4d + firms$within_4d)))
+    cat(sprintf("  %d: N=%d kept=%d | k=%d rel=%.1e rowsum=%.4f | id_err=%.1e\n",
+                t, N, nrow(firms), ns$k, ns$rel_err, max_rowsum, id_err))
+  }
+
+  conv_df <- bind_rows(conv_all)
+  save(conv_df, file = file.path(out_dir, "conv_summary.RData"))
+}
+cat("\nDone.\n")
