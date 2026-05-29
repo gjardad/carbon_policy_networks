@@ -30,7 +30,7 @@ rm(list = ls())
 suppressPackageStartupMessages(library(dplyr))
 
 # ---- Paths ----
-if (Sys.info()[["user"]] == "JARDANG") {
+if (tolower(Sys.info()[["user"]]) == "jardang") {
   nbb_data     <- "X:/Documents/JARDANG/NBB_data"
   project_root <- "X:/Documents/JARDANG/carbon_policy_networks"
 } else {

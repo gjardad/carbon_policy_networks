@@ -27,7 +27,7 @@
 rm(list = ls())
 suppressPackageStartupMessages(library(dplyr))
 
-if (Sys.info()[["user"]] == "JARDANG") {
+if (tolower(Sys.info()[["user"]]) == "jardang") {
   project_root <- "X:/Documents/JARDANG/carbon_policy_networks"
 } else {
   project_root <- "c:/Users/jota_/Documents/carbon_policy_networks"
