@@ -133,99 +133,163 @@ alloc_all <- load_alloc()
 z_for <- function(scn) if (scn == "s1") filter(alloc_all, source == "ets") else alloc_all
 
 # =============================================================================
-# Build per scenario x year
+# Per-year worker (called from parallel cluster or single-threaded fallback)
 # =============================================================================
+build_year_one <- function(t, b2b_t, eutl_t, acc_t, imp_t, chars_t, z_t,
+                           out_dir, scn) {
+  if (nrow(b2b_t) == 0L) return(NULL)
+
+  all_vats <- sort(unique(c(b2b_t$vat_i_ano, b2b_t$vat_j_ano)))
+  N <- length(all_vats); vat_idx <- setNames(seq_len(N), all_vats)
+
+  b2b_agg <- b2b_t %>% group_by(vat_i_ano, vat_j_ano) %>%
+    summarise(sales = sum(corr_sales_ij, na.rm = TRUE), .groups = "drop") %>%
+    filter(sales > 0)
+
+  # cost_vec = wages + domestic inputs + imports + carbon cost
+  cost_vec <- rep(1e-6, N)
+  rs <- b2b_agg %>% group_by(vat_j_ano) %>% summarise(d = sum(sales), .groups = "drop")
+  bi <- vat_idx[rs$vat_j_ano]; ok <- !is.na(bi)
+  cost_vec[bi[ok]] <- cost_vec[bi[ok]] + rs$d[ok]
+  ai <- match(acc_t$vat, all_vats); oka <- !is.na(ai) & acc_t$wage_bill > 0
+  cost_vec[ai[oka]] <- cost_vec[ai[oka]] + acc_t$wage_bill[oka]
+  ii <- match(imp_t$vat, all_vats); oki <- !is.na(ii) & !is.na(imp_t$total_imports) & imp_t$total_imports > 0
+  cost_vec[ii[oki]] <- cost_vec[ii[oki]] + imp_t$total_imports[oki]
+  ei <- match(eutl_t$vat, all_vats); oke <- !is.na(ei) & !is.na(eutl_t$emissions) & eutl_t$emissions > 0
+  cost_vec[ei[oke]] <- cost_vec[ei[oke]] + eutl_t$emissions[oke] * CARBON_PRICE[as.character(t)]
+
+  # A[buyer, supplier] = expenditure / total_cost(buyer)
+  row_i <- vat_idx[b2b_agg$vat_j_ano]; col_j <- vat_idx[b2b_agg$vat_i_ano]
+  okij  <- !is.na(row_i) & !is.na(col_j)
+  A <- sparseMatrix(i = row_i[okij], j = col_j[okij],
+                    x = b2b_agg$sales[okij] / cost_vec[row_i[okij]], dims = c(N, N))
+  max_rowsum <- max(rowSums(A))
+
+  # emission intensity vector e_cost = z / cost
+  eps <- rep(0, N)
+  zi <- match(z_t$vat, all_vats); okz <- !is.na(zi)
+  eps[zi[okz]] <- z_t$scope1[okz] / cost_vec[zi[okz]]
+  source_vec <- rep("none", N); source_vec[zi[okz]] <- z_t$source[okz]
+  scope1_vec <- cost_vec * eps
+
+  ns <- neumann_series(A, eps, NEUMANN_MAXIT, NEUMANN_TOL)
+  nu <- ns$m; u <- nu - eps
+
+  # decomposition (one application of A onto sector-mean nu)
+  cm <- match(all_vats, chars_t$vat)
+  nace2d_vec <- chars_t$nace2d[cm]; nace4d_vec <- chars_t$nace4d[cm]
+  nace5d_vec <- chars_t$nace5d[cm]; rev_vec <- chars_t$revenue[cm]
+
+  decomp <- function(sec_vec) {
+    nb <- nu; ok <- !is.na(sec_vec)
+    if (any(ok)) { sm <- tapply(nu[ok], sec_vec[ok], mean); nb[ok] <- sm[sec_vec[ok]] }
+    across <- as.numeric(A %*% nb)
+    list(across = across, within = u - across)
+  }
+  d2 <- decomp(nace2d_vec); d4 <- decomp(nace4d_vec)
+
+  firms <- data.frame(
+    vat = all_vats, year = t, source = source_vec,
+    nace5d = nace5d_vec, nace4d = nace4d_vec, nace2d = nace2d_vec,
+    total_cost = cost_vec, revenue = rev_vec,
+    scope1 = scope1_vec, e_cost = eps, nu = nu, u = u,
+    across_2d = d2$across, within_2d = d2$within,
+    across_4d = d4$across, within_4d = d4$within,
+    stringsAsFactors = FALSE)
+  firms <- firms[firms$nu > 0, ]
+
+  id_err <- max(abs(firms$nu - (firms$e_cost + firms$across_4d + firms$within_4d)))
+  conv_info <- data.frame(year = t, scenario = scn, N = N, n_firms = nrow(firms),
+                          max_rowsum = max_rowsum, k = ns$k,
+                          rel_err = ns$rel_err, converged = ns$converged,
+                          id_err = id_err)
+  save(firms, conv_info, max_rowsum,
+       file = file.path(out_dir, sprintf("firms_%d.RData", t)))
+  conv_info
+}
+
+# =============================================================================
+# Pre-slice scenario-invariant inputs by year. Workers receive only their
+# year's slice, so memory does not blow up across the cluster.
+# =============================================================================
+slice_by_year <- function(df, years) {
+  setNames(lapply(years, function(t) df[df$year == t, , drop = FALSE]),
+           as.character(years))
+}
+
+static_slices <- list(
+  b2b      = slice_by_year(b2b,        YEARS),
+  eutl     = slice_by_year(eutl,       YEARS),
+  accounts = slice_by_year(accounts,   YEARS),
+  imports  = slice_by_year(imports,    YEARS),
+  chars    = slice_by_year(firm_chars, YEARS))
+rm(b2b, eutl, accounts, imports, firm_chars); gc(verbose = FALSE)
+
+# =============================================================================
+# Parallel (or serial fallback) build per scenario x year
+# =============================================================================
+N_CORES_SET <- if (tolower(Sys.info()[["user"]]) == "jardang") {
+  40L
+} else {
+  max(1L, parallel::detectCores(logical = FALSE) - 2L)
+}
+n_workers   <- min(length(YEARS), N_CORES_SET)
+use_par     <- n_workers > 1L
+
 for (scn in SCENARIOS) {
   out_dir <- file.path(out_data, sprintf("upstream_emissions_%s", scn))
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
-  z_panel <- z_for(scn)
-  conv_all <- list()
-  cat(sprintf("\n-- Scenario %s --\n", toupper(scn)))
+  z_panel  <- z_for(scn)
+  z_slices <- slice_by_year(z_panel, YEARS)
 
-  for (t in YEARS) {
-    b2b_t   <- b2b[b2b$year == t, ]
-    if (nrow(b2b_t) == 0) { cat(sprintf("  %d: no B2B, skip\n", t)); next }
-    acc_t   <- accounts[accounts$year == t, ]
-    imp_t   <- imports[imports$year == t, ]
-    eutl_t  <- eutl[eutl$year == t, ]
-    chars_t <- firm_chars[firm_chars$year == t, ]
-    z_t     <- z_panel[z_panel$year == t, ]
+  inputs <- lapply(YEARS, function(t) {
+    ts <- as.character(t)
+    list(t = t,
+         b2b_t   = static_slices$b2b[[ts]],
+         eutl_t  = static_slices$eutl[[ts]],
+         acc_t   = static_slices$accounts[[ts]],
+         imp_t   = static_slices$imports[[ts]],
+         chars_t = static_slices$chars[[ts]],
+         z_t     = z_slices[[ts]],
+         out_dir = out_dir,
+         scn     = scn)
+  })
 
-    all_vats <- sort(unique(c(b2b_t$vat_i_ano, b2b_t$vat_j_ano)))
-    N <- length(all_vats); vat_idx <- setNames(seq_len(N), all_vats)
+  cat(sprintf("\n-- Scenario %s | %s | workers=%d --\n",
+              toupper(scn), if (use_par) "PARALLEL" else "SERIAL", n_workers))
+  t0 <- Sys.time()
 
-    b2b_agg <- b2b_t %>% group_by(vat_i_ano, vat_j_ano) %>%
-      summarise(sales = sum(corr_sales_ij, na.rm = TRUE), .groups = "drop") %>%
-      filter(sales > 0)
-
-    # cost_vec = wages + domestic inputs + imports + carbon cost
-    cost_vec <- rep(1e-6, N)
-    rs <- b2b_agg %>% group_by(vat_j_ano) %>% summarise(d = sum(sales), .groups = "drop")
-    bi <- vat_idx[rs$vat_j_ano]; ok <- !is.na(bi)
-    cost_vec[bi[ok]] <- cost_vec[bi[ok]] + rs$d[ok]
-    ai <- match(acc_t$vat, all_vats); oka <- !is.na(ai) & acc_t$wage_bill > 0
-    cost_vec[ai[oka]] <- cost_vec[ai[oka]] + acc_t$wage_bill[oka]
-    ii <- match(imp_t$vat, all_vats); oki <- !is.na(ii) & !is.na(imp_t$total_imports) & imp_t$total_imports > 0
-    cost_vec[ii[oki]] <- cost_vec[ii[oki]] + imp_t$total_imports[oki]
-    ei <- match(eutl_t$vat, all_vats); oke <- !is.na(ei) & !is.na(eutl_t$emissions) & eutl_t$emissions > 0
-    cost_vec[ei[oke]] <- cost_vec[ei[oke]] + eutl_t$emissions[oke] * CARBON_PRICE[as.character(t)]
-
-    # A[buyer, supplier] = expenditure / total_cost(buyer)
-    row_i <- vat_idx[b2b_agg$vat_j_ano]; col_j <- vat_idx[b2b_agg$vat_i_ano]
-    okij  <- !is.na(row_i) & !is.na(col_j)
-    A <- sparseMatrix(i = row_i[okij], j = col_j[okij],
-                      x = b2b_agg$sales[okij] / cost_vec[row_i[okij]], dims = c(N, N))
-    max_rowsum <- max(rowSums(A))
-    if (max_rowsum >= 1) cat(sprintf("  WARNING %d: max rowsum(A)=%.6f >= 1\n", t, max_rowsum))
-
-    # emission intensity vector e_cost = z / cost
-    eps <- rep(0, N)
-    zi <- match(z_t$vat, all_vats); okz <- !is.na(zi)
-    eps[zi[okz]] <- z_t$scope1[okz] / cost_vec[zi[okz]]
-    source_vec <- rep("none", N); source_vec[zi[okz]] <- z_t$source[okz]
-    scope1_vec <- cost_vec * eps
-
-    ns <- neumann_series(A, eps, NEUMANN_MAXIT, NEUMANN_TOL)
-    nu <- ns$m                      # network-adjusted EI (incl direct), per cost
-    u  <- nu - eps                  # upstream part = A %*% nu
-
-    # sector vectors for decomposition (from firm_chars)
-    cm <- match(all_vats, chars_t$vat)
-    nace2d_vec <- chars_t$nace2d[cm]; nace4d_vec <- chars_t$nace4d[cm]
-    nace5d_vec <- chars_t$nace5d[cm]; rev_vec <- chars_t$revenue[cm]
-
-    decomp <- function(sec_vec) {
-      nb <- nu; ok <- !is.na(sec_vec)
-      if (any(ok)) { sm <- tapply(nu[ok], sec_vec[ok], mean); nb[ok] <- sm[sec_vec[ok]] }
-      across <- as.numeric(A %*% nb)
-      list(across = across, within = u - across)
-    }
-    d2 <- decomp(nace2d_vec); d4 <- decomp(nace4d_vec)
-
-    firms <- data.frame(
-      vat = all_vats, year = t, source = source_vec,
-      nace5d = nace5d_vec, nace4d = nace4d_vec, nace2d = nace2d_vec,
-      total_cost = cost_vec, revenue = rev_vec,
-      scope1 = scope1_vec, e_cost = eps, nu = nu, u = u,
-      across_2d = d2$across, within_2d = d2$within,
-      across_4d = d4$across, within_4d = d4$within,
-      stringsAsFactors = FALSE)
-    firms <- firms[firms$nu > 0, ]
-
-    conv_info <- data.frame(year = t, scenario = scn, n_firms = nrow(firms),
-                            max_rowsum = max_rowsum, k = ns$k,
-                            rel_err = ns$rel_err, converged = ns$converged)
-    conv_all[[as.character(t)]] <- conv_info
-    save(firms, conv_info, max_rowsum,
-         file = file.path(out_dir, sprintf("firms_%d.RData", t)))
-
-    # identity check
-    id_err <- max(abs(firms$nu - (firms$e_cost + firms$across_4d + firms$within_4d)))
-    cat(sprintf("  %d: N=%d kept=%d | k=%d rel=%.1e rowsum=%.4f | id_err=%.1e\n",
-                t, N, nrow(firms), ns$k, ns$rel_err, max_rowsum, id_err))
+  if (use_par) {
+    cl <- parallel::makeCluster(n_workers)
+    on.exit(try(parallel::stopCluster(cl), silent = TRUE), add = TRUE)
+    parallel::clusterEvalQ(cl, suppressPackageStartupMessages({
+      library(dplyr); library(Matrix)
+    }))
+    parallel::clusterExport(cl,
+      varlist = c("build_year_one", "neumann_series",
+                  "CARBON_PRICE", "NEUMANN_MAXIT", "NEUMANN_TOL"),
+      envir   = environment())
+    convs <- parallel::clusterApplyLB(cl, inputs, function(inp) {
+      with(inp, build_year_one(t, b2b_t, eutl_t, acc_t, imp_t, chars_t, z_t,
+                               out_dir, scn))
+    })
+    parallel::stopCluster(cl); on.exit()
+  } else {
+    convs <- lapply(inputs, function(inp) {
+      with(inp, build_year_one(t, b2b_t, eutl_t, acc_t, imp_t, chars_t, z_t,
+                               out_dir, scn))
+    })
   }
 
-  conv_df <- bind_rows(conv_all)
+  conv_df <- bind_rows(convs[!sapply(convs, is.null)])
   save(conv_df, file = file.path(out_dir, "conv_summary.RData"))
+  cat(sprintf("  finished %d years in %.1f min\n",
+              nrow(conv_df),
+              as.numeric(difftime(Sys.time(), t0, units = "mins"))))
+  for (i in seq_len(nrow(conv_df))) {
+    r <- conv_df[i, ]
+    cat(sprintf("    %d: N=%d kept=%d | k=%d rel=%.1e rowsum=%.4f | id_err=%.1e\n",
+                r$year, r$N, r$n_firms, r$k, r$rel_err, r$max_rowsum, r$id_err))
+  }
 }
 cat("\nDone.\n")
