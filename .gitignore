@@ -8,6 +8,13 @@ cache/
 *.rds
 *.RData
 
+# ---- R session artifacts ----
+.Rhistory
+.Rapp.history
+.RData
+.Ruserdata
+.Rproj.user/
+
 # ---- PDFs (copyrighted papers) ----
 articles/*.pdf
 articles/
