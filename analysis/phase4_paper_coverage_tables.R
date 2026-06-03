@@ -99,11 +99,16 @@ read_crt_one <- function(year) {
   d_1A4 <- get_value(f, "Table1",    "^1\\.A\\.4\\.\\s")
   d_1A4b<- get_value(f, "Table1",    "^1\\.A\\.4\\.b")
   d_2   <- get_value(f, "Table2(I)", "^2\\.\\s*Total")
+  # Mineral/Chemical/Metal industries from Summary1 (broken out under section 2)
+  d_2A  <- get_value(f, "Summary1", "^\\s*2\\.A\\.")
+  d_2B  <- get_value(f, "Summary1", "^\\s*2\\.B\\.")
+  d_2C  <- get_value(f, "Summary1", "^\\s*2\\.C\\.")
   d_total_net <- get_value(f, "Summary1", "(?i)^\\s*Total national emissions")
   d_lulucf    <- get_value(f, "Summary1", "^\\s*4\\.\\s*Land")
   data.frame(year = year,
-             stationary_kt = d_1A1 + d_1A2 + (d_1A4 - d_1A4b) + d_2,
-             total_kt      = d_total_net - d_lulucf)
+             stationary_kt    = d_1A1 + d_1A2 + (d_1A4 - d_1A4b) + d_2,
+             elec_industry_kt = d_1A1 + d_1A2 + d_2A + d_2B + d_2C,
+             total_kt         = d_total_net - d_lulucf)
 }
 
 nir <- bind_rows(lapply(DISPLAY_YEARS, read_crt_one))
@@ -184,12 +189,14 @@ tbl <- nir %>%
          va_pct      = 100 * va_sample / va_full,
          wb_bn       = wb_sample / 1e9,
          wb_pct      = 100 * wb_sample / wb_full,
-         ets_sample_Mt = ets_sample_kt / 1e3,
-         total_Mt    = total_kt / 1e3,
-         stationary_Mt = stationary_kt / 1e3,
-         cov_total   = 100 * ets_sample_kt / total_kt,
-         cov_stat    = 100 * ets_sample_kt / stationary_kt,
-         cov_ets_all = 100 * ets_sample_kt / ets_all_be_kt)
+         ets_sample_Mt    = ets_sample_kt / 1e3,
+         total_Mt         = total_kt / 1e3,
+         stationary_Mt    = stationary_kt / 1e3,
+         elec_industry_Mt = elec_industry_kt / 1e3,
+         cov_total    = 100 * ets_sample_kt / total_kt,
+         cov_stat     = 100 * ets_sample_kt / stationary_kt,
+         cov_elec_ind = 100 * ets_sample_kt / elec_industry_kt,
+         cov_ets_all  = 100 * ets_sample_kt / ets_all_be_kt)
 
 cat("\nAssembled panel:\n")
 print(tbl %>% select(year, n_sample, n_ets_sample, va_bn, va_pct, wb_bn, wb_pct,
@@ -208,27 +215,27 @@ fmt_pct <- function(x) ifelse(is.na(x), "$-$", sprintf("%.0f", x))
 ets_tex <- paste(
 "\\begin{table}[h]",
 "    \\centering",
-"    \\caption{EU ETS coverage of Belgian CO\\textsubscript{2} emissions in our sample, selected years}",
+"    \\caption{EU ETS coverage of Belgian CO\\textsubscript{2} emissions}",
 "    \\label{tab:ets_coverage_belgium}",
 "    \\small",
-"    \\begin{tabular}{l c c c c c}",
+"    \\begin{tabular}{l c c c c c c}",
 "        \\toprule",
-"         & \\multicolumn{3}{c}{Emissions (Mt CO\\textsubscript{2})} & \\multicolumn{2}{c}{Coverage (\\%)} \\\\",
-"        \\cmidrule(lr){2-4} \\cmidrule(lr){5-6}",
-"        Year & Sample EU ETS & Belgian total & Stationary & of total & of stationary \\\\",
+"         & \\multicolumn{3}{c}{Emissions (Mt CO\\textsubscript{2})} & \\multicolumn{3}{c}{Coverage (\\%)} \\\\",
+"        \\cmidrule(lr){2-4} \\cmidrule(lr){5-7}",
+"        Year & EU ETS & Belgian total & Stationary & of total & of stationary & of elec.\\ + ind. \\\\",
 "        \\midrule",
 sep = "\n")
 ets_body <- paste(sapply(seq_len(nrow(tbl)), function(i) {
   r <- tbl[i, ]
-  sprintf("        %d & %s & %s & %s & %s & %s \\\\",
+  sprintf("        %d & %s & %s & %s & %s & %s & %s \\\\",
           r$year, fmt1(r$ets_sample_Mt), fmt1(r$total_Mt), fmt1(r$stationary_Mt),
-          fmt_pct(r$cov_total), fmt_pct(r$cov_stat))
+          fmt_pct(r$cov_total), fmt_pct(r$cov_stat), fmt_pct(r$cov_elec_ind))
 }), collapse = "\n")
 ets_tail <- paste(
 "        \\bottomrule",
 "    \\end{tabular}",
 "    \\begin{minipage}{\\textwidth}",
-"        {\\footnotesize \\vspace{0.25cm} \\noindent \\textit{Notes:} \\emph{Sample EU ETS} sums verified CO\\textsubscript{2} emissions of EU ETS firms in our analysis sample (firms meeting the De Loecker/Dhyne sample-selection criteria) from installations located in Belgium. \\emph{Belgian total} is Belgium's total CO\\textsubscript{2} emissions excluding land use, land-use change and forestry, from the National Inventory Report (NIR). \\emph{Stationary} sums CO\\textsubscript{2} emissions from stationary installations as reported in the NIR --- fuel combustion in energy industries (Common Reporting Format category 1.A.1), manufacturing and construction (1.A.2), other sectors excluding residential heating (1.A.4 -- 1.A.4.b), plus all industrial process emissions (2). Coverage shares are sample EU ETS emissions divided by each total.}",
+"        {\\footnotesize \\vspace{0.25cm} \\noindent \\textit{Notes:} \\emph{EU ETS} sums verified CO\\textsubscript{2} emissions of EU ETS firms in our analysis sample (firms meeting the De Loecker/Dhyne sample-selection criteria) from installations located in Belgium. \\emph{Belgian total} is Belgium's total CO\\textsubscript{2} emissions excluding land use, land-use change and forestry, from the National Inventory Report (NIR). \\emph{Stationary} sums CO\\textsubscript{2} emissions from stationary installations in the NIR: fuel combustion in energy industries (Common Reporting Format category 1.A.1), manufacturing and construction (1.A.2), other sectors excluding residential heating (1.A.4 -- 1.A.4.b), plus all industrial process emissions (2). The \\emph{electricity + industry} denominator is the narrower aggregate that the EU ETS is designed to regulate: 1.A.1 + 1.A.2 + 2.A (Mineral industry) + 2.B (Chemical industry) + 2.C (Metal industry). Coverage shares are EU ETS sample emissions divided by each denominator.}",
 "    \\end{minipage}",
 "\\end{table}",
 sep = "\n")
