@@ -31,6 +31,7 @@ if (!.user %in% names(KNOWN_USERS))
 project_root <- KNOWN_USERS[[.user]]$project_root
 nbb_data     <- KNOWN_USERS[[.user]]$nbb_data
 proc_data    <- file.path(nbb_data, "processed")
+raw_data     <- file.path(nbb_data, "raw")
 out_data     <- file.path(project_root, "data", "processed")
 
 if (!dir.exists(project_root))
