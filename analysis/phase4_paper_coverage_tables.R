@@ -32,10 +32,17 @@
 #       (all Belgian ETS installations; denominator for % of EU ETS)
 #
 # OUTPUTS
-#   - paper/sections/tables/ets_coverage_belgium.tex
-#   - paper/sections/tables/sample_coverage.tex
-#   - paper/thesis/tables/ets_coverage_belgium.tex
-#   - paper/thesis/tables/sample_coverage.tex
+#   - output_{rmd,local}/tables/ets_coverage_belgium.tex
+#   - output_{rmd,local}/tables/sample_coverage.tex
+#   - output_{rmd,local}/coverage_tables_summary.csv
+#
+#   Both tables are committed to the parent repo (no paper-submodule dance).
+#   To publish into the paper, copy from output_{rmd,local}/tables/ into the
+#   paper-submodule's tables/ and thesis/tables/ on whichever machine has the
+#   paper submodule initialized (typically local 1):
+#
+#     cp output_rmd/tables/*.tex paper/tables/
+#     cp output_rmd/tables/*.tex paper/thesis/tables/
 #
 # RUNS ON: RMD for real numbers (annual accounts are downsampled locally).
 ###############################################################################
@@ -56,10 +63,8 @@ rm(.path_candidates, .p)
 
 DISPLAY_YEARS <- c(2005, 2008, 2012, 2020)
 NIR_DIR <- file.path(raw_data, "NIR")
-PAPER_DIR  <- file.path(project_root, "paper")
-TBL_DIRS   <- c(file.path(PAPER_DIR, "tables"),
-                file.path(PAPER_DIR, "thesis", "tables"))
-for (d in TBL_DIRS) dir.create(d, recursive = TRUE, showWarnings = FALSE)
+TBL_DIR <- file.path(output_dir, "tables")
+dir.create(TBL_DIR, recursive = TRUE, showWarnings = FALSE)
 
 cat("== phase4_paper_coverage_tables ==\n  user:", Sys.info()[["user"]], "\n",
     sprintf("  years: %s\n", paste(DISPLAY_YEARS, collapse = ", ")))
@@ -263,20 +268,17 @@ sc_tail <- paste(
 sep = "\n")
 sc_full <- paste(sc_tex, sc_body, sc_tail, sep = "\n")
 
-# ---- Write to both paper directories ----
-for (d in TBL_DIRS) {
-  writeLines(ets_full, file.path(d, "ets_coverage_belgium.tex"))
-  writeLines(sc_full,  file.path(d, "sample_coverage.tex"))
-  cat(sprintf("  wrote %s/ets_coverage_belgium.tex\n", d))
-  cat(sprintf("  wrote %s/sample_coverage.tex\n",  d))
-}
+# ---- Write tables + CSV to output_{rmd,local}/ ----
+writeLines(ets_full, file.path(TBL_DIR, "ets_coverage_belgium.tex"))
+writeLines(sc_full,  file.path(TBL_DIR, "sample_coverage.tex"))
+cat(sprintf("  wrote %s/ets_coverage_belgium.tex\n", TBL_DIR))
+cat(sprintf("  wrote %s/sample_coverage.tex\n",  TBL_DIR))
 
-# ---- Also save CSV for reference ----
 csv_out <- tbl %>%
   select(year, n_sample, n_ets_sample, va_bn, va_pct, wb_bn, wb_pct,
          ets_sample_Mt, ets_sample_kt, total_Mt, stationary_Mt,
          cov_total, cov_stat, cov_ets_all)
-write.csv(csv_out, file.path(out_data, "coverage_tables_summary.csv"),
+write.csv(csv_out, file.path(output_dir, "coverage_tables_summary.csv"),
           row.names = FALSE)
-cat(sprintf("\nSaved CSV: %s\n", file.path(out_data, "coverage_tables_summary.csv")))
+cat(sprintf("\nSaved CSV: %s\n", file.path(output_dir, "coverage_tables_summary.csv")))
 cat("\nDone.\n")

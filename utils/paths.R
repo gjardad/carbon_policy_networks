@@ -34,6 +34,18 @@ proc_data    <- file.path(nbb_data, "processed")
 raw_data     <- file.path(nbb_data, "raw")
 out_data     <- file.path(project_root, "data", "processed")
 
+# output_dir: scripts write trackable artifacts here (CSVs, .tex tables).
+# Split by machine so RMD and local-1 outputs never mingle; both directories
+# are tracked in the parent repo. To publish a table into the paper, copy
+# from output_{rmd,local}/tables/ into paper/tables/ (and paper/thesis/tables/).
+output_dir <- if (.user == "jardang") {
+  file.path(project_root, "output_rmd")
+} else {
+  file.path(project_root, "output_local")
+}
+dir.create(file.path(output_dir, "tables"),  recursive = TRUE, showWarnings = FALSE)
+dir.create(file.path(output_dir, "figures"), recursive = TRUE, showWarnings = FALSE)
+
 if (!dir.exists(project_root))
   stop("project_root not found: ", project_root,
        " (user = ", Sys.info()[["user"]], ")")
