@@ -78,9 +78,17 @@ get_value <- function(f, sheet, label_regex) {
 }
 
 read_crt_one <- function(year) {
-  f <- list.files(NIR_DIR, pattern = sprintf("^BEL-CRT-2025-V1\\.0-%d-", year),
-                  full.names = TRUE)[1]
-  if (is.na(f)) stop("Missing CRT file for year ", year, " in ", NIR_DIR)
+  # Match any submission-year vintage (BEL-CRT-2024, BEL-CRT-2025, ...).
+  # Prefer the newest vintage if multiple match.
+  matches <- list.files(NIR_DIR,
+                        pattern = sprintf("^BEL[-_]?CRT[-_]?\\d{4}[-_]?V?\\d*\\.?\\d*[-_]?%d[-_]", year),
+                        full.names = TRUE)
+  if (length(matches) == 0L)
+    stop("Missing CRT file for year ", year, " in ", NIR_DIR,
+         " (tried submission-year-agnostic pattern)")
+  # Pick the file with the highest embedded submission year (most recent vintage)
+  vint <- as.integer(stringr::str_extract(basename(matches), "(?<=BEL[-_]CRT[-_])\\d{4}"))
+  f <- matches[which.max(vint)]
   d_1A1 <- get_value(f, "Table1",    "^1\\.A\\.1\\.\\s")
   d_1A2 <- get_value(f, "Table1",    "^1\\.A\\.2\\.\\s")
   d_1A4 <- get_value(f, "Table1",    "^1\\.A\\.4\\.\\s")
