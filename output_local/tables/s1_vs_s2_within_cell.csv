@@ -1,0 +1,5 @@
+"measure","granularity","n_cells","n_firms_mean","mean_spearman","mean_log_ratio","median_log_ratio"
+"nu","4d",32,19,0.889,0.859,0.392
+"nu","2d",26,49,0.836,0.961,0.429
+"u","4d",32,19,0.943,0.607,0.303
+"u","2d",26,49,0.942,0.57,0.193
