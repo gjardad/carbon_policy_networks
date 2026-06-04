@@ -1,0 +1,5 @@
+"scenario","granularity","n_cells","n_firms_mean","mean_spearman","mean_pearson_log"
+"s1","4d",6394,332,0.994,0.993
+"s1","2d",1074,1982,0.996,0.993
+"s2","4d",6394,332,0.955,0.93
+"s2","2d",1074,1982,0.961,0.934
