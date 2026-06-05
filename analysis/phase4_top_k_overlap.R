@@ -61,6 +61,18 @@ cell_overlap <- function(d, group_col, other_col) {
         o_rank <- rank(-other,  ties.method = "average")
         length(intersect(which(e_rank <= 10L), which(o_rank <= 10L))) / 10L
       } else NA_real_,
+      overlap_top10pct   = {
+        K <- max(1L, round(n() * 0.10))
+        e_rank <- rank(-e_cost, ties.method = "average")
+        o_rank <- rank(-other,  ties.method = "average")
+        length(intersect(which(e_rank <= K), which(o_rank <= K))) / K
+      },
+      overlap_top25pct   = {
+        K <- max(1L, round(n() * 0.25))
+        e_rank <- rank(-e_cost, ties.method = "average")
+        o_rank <- rank(-other,  ties.method = "average")
+        length(intersect(which(e_rank <= K), which(o_rank <= K))) / K
+      },
       overlap_top_half = {
         K <- max(1L, floor(n() / 2L))
         e_rank <- rank(-e_cost, ties.method = "average")
@@ -79,16 +91,18 @@ for (scn_name in c("s1", "s2")) {
     for (other in c("u", "nu")) {
       cells <- cell_overlap(firms, grp_col, other)
       rows[[length(rows) + 1L]] <- tibble(
-        scenario              = scn_name,
-        granularity           = gran,
-        compared_to           = other,
-        n_cells_top_half      = nrow(cells),
-        n_cells_top10         = sum(!is.na(cells$overlap_top10)),
-        n_cells_top5          = sum(!is.na(cells$overlap_top5)),
-        n_firms_mean          = round(mean(cells$n_firms, na.rm = TRUE)),
-        mean_top5_overlap     = mean(cells$overlap_top5,     na.rm = TRUE),
-        mean_top10_overlap    = mean(cells$overlap_top10,    na.rm = TRUE),
-        mean_top_half_overlap = mean(cells$overlap_top_half, na.rm = TRUE))
+        scenario               = scn_name,
+        granularity            = gran,
+        compared_to            = other,
+        n_cells_all            = nrow(cells),
+        n_cells_top10          = sum(!is.na(cells$overlap_top10)),
+        n_cells_top5           = sum(!is.na(cells$overlap_top5)),
+        n_firms_mean           = round(mean(cells$n_firms, na.rm = TRUE)),
+        mean_top5_overlap      = mean(cells$overlap_top5,      na.rm = TRUE),
+        mean_top10_overlap     = mean(cells$overlap_top10,     na.rm = TRUE),
+        mean_top10pct_overlap  = mean(cells$overlap_top10pct,  na.rm = TRUE),
+        mean_top25pct_overlap  = mean(cells$overlap_top25pct,  na.rm = TRUE),
+        mean_top_half_overlap  = mean(cells$overlap_top_half,  na.rm = TRUE))
     }
   }
 }
