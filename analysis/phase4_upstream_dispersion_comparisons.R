@@ -81,17 +81,18 @@ cat(sprintf("Joint S1xS2 firm-years: %d\n\n", nrow(joint)))
 # Helpers
 # ============================================================================
 
-# Mean p9010 log gap per cell, then mean across cells.
+# Per-cell dispersion stats. Uses the shared disp_stats() helper from
+# utils/sector_conventions.R, which returns per-cell n_firms, p90p10,
+# p9010_log, var_log, gini -- giving us the log p90/p10 gap (a tail-quantile
+# stat) AND var(log) (a whole-distribution stat) within the same call.
 disp_cells <- function(d, value_col, group_col,
                        min_n = MIN_N_FOR_STATS) {
   d %>%
     mutate(grp = .data[[group_col]], val = .data[[value_col]]) %>%
     filter(!is.na(grp), is.finite(val), val > 0) %>%
     group_by(grp, year) %>%
-    summarise(n_firms   = n(),
-              p9010_log = quantile(log(val), 0.9, na.rm = TRUE) -
-                          quantile(log(val), 0.1, na.rm = TRUE),
-              .groups   = "drop") %>%
+    group_modify(~ disp_stats(.x$val)) %>%
+    ungroup() %>%
     filter(n_firms >= min_n) %>%
     rename(!!group_col := grp)
 }
@@ -138,28 +139,38 @@ summarise_cells <- function(cells, value_cols) {
 }
 
 # ============================================================================
-# (a) u dispersion summary, parallel to existing dispersion-of-nu
+# (a) Dispersion summary for both u and nu, two within-cell stats per object:
+#     - mean across cells of the p90-p10 log gap (tail-quantile)
+#     - mean across cells of sd(log) = sqrt(var(log)) (whole-distribution)
+#   The sd(log) stat is what Lyubich-Shapiro-Walker (2018, Table 1) and
+#   De Lyon-Dechezlepretre (2025) report alongside the p90/p10 ratio.
 # ============================================================================
-cat("-- (a) u dispersion --\n")
+cat("-- (a) u and nu dispersion --\n")
 
-u_rows <- list()
+disp_rows <- list()
 for (scn_name in c("s1", "s2")) {
   d <- if (scn_name == "s1") firms_s1 else firms_s2
   for (gran in c("4d", "2d")) {
     grp_col <- paste0("nace", gran)
-    cells   <- disp_cells(d, "u", grp_col)
-    u_rows[[length(u_rows) + 1L]] <- tibble(
-      scenario     = scn_name,
-      granularity  = gran,
-      object       = "u",
-      n_cells      = nrow(cells),
-      n_firms_mean = round(mean(cells$n_firms, na.rm = TRUE)),
-      mean_log_gap = mean(cells$p9010_log, na.rm = TRUE),
-      ratio_x      = exp(mean(cells$p9010_log, na.rm = TRUE)))
+    for (obj in c("u", "nu")) {
+      cells <- disp_cells(d, obj, grp_col)
+      disp_rows[[length(disp_rows) + 1L]] <- tibble(
+        scenario     = scn_name,
+        granularity  = gran,
+        object       = obj,
+        n_cells      = nrow(cells),
+        n_firms_mean = round(mean(cells$n_firms, na.rm = TRUE)),
+        mean_log_gap = mean(cells$p9010_log,           na.rm = TRUE),
+        ratio_x      = exp(mean(cells$p9010_log,       na.rm = TRUE)),
+        mean_sd_log  = mean(sqrt(cells$var_log),       na.rm = TRUE),
+        mean_var_log = mean(cells$var_log,             na.rm = TRUE),
+        mean_gini    = mean(cells$gini,                na.rm = TRUE))
+    }
   }
 }
-dispersion_u <- bind_rows(u_rows) %>%
-  mutate(across(c(mean_log_gap, ratio_x), ~round(.x, 3)))
+dispersion_u <- bind_rows(disp_rows) %>%
+  mutate(across(c(mean_log_gap, ratio_x, mean_sd_log, mean_var_log, mean_gini),
+                ~round(.x, 3)))
 print(dispersion_u, row.names = FALSE)
 write.csv(dispersion_u, file.path(TBL_DIR, "dispersion_u_summary.csv"),
           row.names = FALSE, na = "")

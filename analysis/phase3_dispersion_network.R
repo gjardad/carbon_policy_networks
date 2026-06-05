@@ -65,18 +65,15 @@ for (scn in c("s1", "s2")) {
   save(nu_stats4d, nu_stats2d, ecost_stats4d, ecost_stats2d,
        file = file.path(proc, sprintf("dispersion_network_%s.RData", scn)))
 
-  cat(sprintf("   nu     4d: %d sec-yrs | mean 90-10 log = %.2f (ratio %.1fx)\n",
-              nrow(nu_stats4d), mean(nu_stats4d$p9010_log, na.rm = TRUE),
-              exp(mean(nu_stats4d$p9010_log, na.rm = TRUE))))
-  cat(sprintf("   nu     2d: %d sec-yrs | mean 90-10 log = %.2f (ratio %.1fx)\n",
-              nrow(nu_stats2d), mean(nu_stats2d$p9010_log, na.rm = TRUE),
-              exp(mean(nu_stats2d$p9010_log, na.rm = TRUE))))
-  cat(sprintf("   e^cost 4d: %d sec-yrs | mean 90-10 log = %.2f (ratio %.1fx)\n",
-              nrow(ecost_stats4d), mean(ecost_stats4d$p9010_log, na.rm = TRUE),
-              exp(mean(ecost_stats4d$p9010_log, na.rm = TRUE))))
-  cat(sprintf("   e^cost 2d: %d sec-yrs | mean 90-10 log = %.2f (ratio %.1fx)\n",
-              nrow(ecost_stats2d), mean(ecost_stats2d$p9010_log, na.rm = TRUE),
-              exp(mean(ecost_stats2d$p9010_log, na.rm = TRUE))))
+  pr <- function(lbl, st) cat(sprintf(
+    "   %s: %d sec-yrs | mean 90-10 log = %.2f (ratio %.1fx) | mean sd(log) = %.2f\n",
+    lbl, nrow(st), mean(st$p9010_log, na.rm = TRUE),
+    exp(mean(st$p9010_log, na.rm = TRUE)),
+    mean(sqrt(st$var_log), na.rm = TRUE)))
+  pr("nu     4d", nu_stats4d)
+  pr("nu     2d", nu_stats2d)
+  pr("e^cost 4d", ecost_stats4d)
+  pr("e^cost 2d", ecost_stats2d)
 }
 
 cat("\nDone.\n")
