@@ -37,33 +37,35 @@ load_build <- function(scn) {
   fs <- sort(list.files(d, pattern = "^firms_\\d+\\.RData$", full.names = TRUE))
   if (length(fs) == 0L) stop("No build files in ", d)
   L <- list(); for (f in fs) { load(f); L[[length(L) + 1L]] <- firms }
-  bind_rows(L) %>% select(vat, year, nace4d, nace2d, e_cost, u)
+  bind_rows(L) %>% select(vat, year, nace4d, nace2d, e_cost, u, nu)
 }
 
-# Per-cell overlap stats. Returns one row per (sector, year) with overlap_topK
-# for K in c(5, 10) (NA if cell smaller than 2K) and overlap_top_half.
-cell_overlap <- function(d, group_col) {
+# Per-cell overlap stats. Computes overlap between (top-K by e^cost) and
+# (top-K by `other`), where `other` is the column name to compare against
+# (typically "u" for upstream-only or "nu" for total network-adjusted).
+cell_overlap <- function(d, group_col, other_col) {
   d %>%
-    mutate(grp = .data[[group_col]]) %>%
-    filter(!is.na(grp), is.finite(e_cost), is.finite(u), e_cost > 0, u > 0) %>%
+    mutate(grp = .data[[group_col]], other = .data[[other_col]]) %>%
+    filter(!is.na(grp), is.finite(e_cost), is.finite(other),
+           e_cost > 0, other > 0) %>%
     group_by(grp, year) %>%
     summarise(
       n_firms          = n(),
       overlap_top5     = if (n() >= 2L * 5L) {
         e_rank <- rank(-e_cost, ties.method = "average")
-        u_rank <- rank(-u,      ties.method = "average")
-        length(intersect(which(e_rank <= 5L), which(u_rank <= 5L))) / 5L
+        o_rank <- rank(-other,  ties.method = "average")
+        length(intersect(which(e_rank <= 5L), which(o_rank <= 5L))) / 5L
       } else NA_real_,
       overlap_top10    = if (n() >= 2L * 10L) {
         e_rank <- rank(-e_cost, ties.method = "average")
-        u_rank <- rank(-u,      ties.method = "average")
-        length(intersect(which(e_rank <= 10L), which(u_rank <= 10L))) / 10L
+        o_rank <- rank(-other,  ties.method = "average")
+        length(intersect(which(e_rank <= 10L), which(o_rank <= 10L))) / 10L
       } else NA_real_,
       overlap_top_half = {
         K <- max(1L, floor(n() / 2L))
         e_rank <- rank(-e_cost, ties.method = "average")
-        u_rank <- rank(-u,      ties.method = "average")
-        length(intersect(which(e_rank <= K), which(u_rank <= K))) / K
+        o_rank <- rank(-other,  ties.method = "average")
+        length(intersect(which(e_rank <= K), which(o_rank <= K))) / K
       },
       .groups = "drop") %>%
     rename(!!group_col := grp)
@@ -74,17 +76,20 @@ for (scn_name in c("s1", "s2")) {
   firms <- load_build(scn_name)
   for (gran in c("4d", "2d")) {
     grp_col <- paste0("nace", gran)
-    cells   <- cell_overlap(firms, grp_col)
-    rows[[length(rows) + 1L]] <- tibble(
-      scenario           = scn_name,
-      granularity        = gran,
-      n_cells_top_half   = nrow(cells),
-      n_cells_top10      = sum(!is.na(cells$overlap_top10)),
-      n_cells_top5       = sum(!is.na(cells$overlap_top5)),
-      n_firms_mean       = round(mean(cells$n_firms, na.rm = TRUE)),
-      mean_top5_overlap  = mean(cells$overlap_top5,     na.rm = TRUE),
-      mean_top10_overlap = mean(cells$overlap_top10,    na.rm = TRUE),
-      mean_top_half_overlap = mean(cells$overlap_top_half, na.rm = TRUE))
+    for (other in c("u", "nu")) {
+      cells <- cell_overlap(firms, grp_col, other)
+      rows[[length(rows) + 1L]] <- tibble(
+        scenario              = scn_name,
+        granularity           = gran,
+        compared_to           = other,
+        n_cells_top_half      = nrow(cells),
+        n_cells_top10         = sum(!is.na(cells$overlap_top10)),
+        n_cells_top5          = sum(!is.na(cells$overlap_top5)),
+        n_firms_mean          = round(mean(cells$n_firms, na.rm = TRUE)),
+        mean_top5_overlap     = mean(cells$overlap_top5,     na.rm = TRUE),
+        mean_top10_overlap    = mean(cells$overlap_top10,    na.rm = TRUE),
+        mean_top_half_overlap = mean(cells$overlap_top_half, na.rm = TRUE))
+    }
   }
 }
 overlap <- bind_rows(rows) %>%
