@@ -1,0 +1,5 @@
+"scenario","granularity","n_cells_top_half","n_cells_top10","n_cells_top5","n_firms_mean","mean_top5_overlap","mean_top10_overlap","mean_top_half_overlap"
+"s1","4d",1140,1,28,2,0.607,0.7,0.783
+"s1","2d",404,51,70,7,0.523,0.561,0.728
+"s2","4d",5828,556,1437,9,0.418,0.422,0.638
+"s2","2d",1037,470,653,50,0.307,0.338,0.6
