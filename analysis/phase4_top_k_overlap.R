@@ -37,7 +37,8 @@ load_build <- function(scn) {
   fs <- sort(list.files(d, pattern = "^firms_\\d+\\.RData$", full.names = TRUE))
   if (length(fs) == 0L) stop("No build files in ", d)
   L <- list(); for (f in fs) { load(f); L[[length(L) + 1L]] <- firms }
-  bind_rows(L) %>% select(vat, year, nace4d, nace2d, e_cost, u, nu)
+  bind_rows(L) %>% select(vat, year, nace4d, nace2d, e_cost, u, nu,
+                          u_other_4d, u_other_2d)
 }
 
 # Per-cell overlap stats. Computes overlap between (top-K by e^cost) and
@@ -84,26 +85,38 @@ cell_overlap <- function(d, group_col, other_col) {
 }
 
 rows <- list()
+# Same/other-sector decomposition specs:
+#   compared_to = "u"          : full upstream
+#   compared_to = "nu"         : total network-adjusted
+#   compared_to = "u_other_4d" : upstream excluding immediate same-4d-sector
+#                                suppliers (compared within 4d cells)
+#   compared_to = "u_other_2d" : upstream excluding immediate same-2d-sector
+#                                suppliers (compared within 2d cells)
+specs <- list(
+  list(gran = "4d", other = "u"),
+  list(gran = "2d", other = "u"),
+  list(gran = "4d", other = "nu"),
+  list(gran = "2d", other = "nu"),
+  list(gran = "4d", other = "u_other_4d"),
+  list(gran = "2d", other = "u_other_2d"))
 for (scn_name in c("s1", "s2")) {
   firms <- load_build(scn_name)
-  for (gran in c("4d", "2d")) {
-    grp_col <- paste0("nace", gran)
-    for (other in c("u", "nu")) {
-      cells <- cell_overlap(firms, grp_col, other)
-      rows[[length(rows) + 1L]] <- tibble(
-        scenario               = scn_name,
-        granularity            = gran,
-        compared_to            = other,
-        n_cells_all            = nrow(cells),
-        n_cells_top10          = sum(!is.na(cells$overlap_top10)),
-        n_cells_top5           = sum(!is.na(cells$overlap_top5)),
-        n_firms_mean           = round(mean(cells$n_firms, na.rm = TRUE)),
-        mean_top5_overlap      = mean(cells$overlap_top5,      na.rm = TRUE),
-        mean_top10_overlap     = mean(cells$overlap_top10,     na.rm = TRUE),
-        mean_top10pct_overlap  = mean(cells$overlap_top10pct,  na.rm = TRUE),
-        mean_top25pct_overlap  = mean(cells$overlap_top25pct,  na.rm = TRUE),
-        mean_top_half_overlap  = mean(cells$overlap_top_half,  na.rm = TRUE))
-    }
+  for (spec in specs) {
+    grp_col <- paste0("nace", spec$gran)
+    cells   <- cell_overlap(firms, grp_col, spec$other)
+    rows[[length(rows) + 1L]] <- tibble(
+      scenario               = scn_name,
+      granularity            = spec$gran,
+      compared_to            = spec$other,
+      n_cells_all            = nrow(cells),
+      n_cells_top10          = sum(!is.na(cells$overlap_top10)),
+      n_cells_top5           = sum(!is.na(cells$overlap_top5)),
+      n_firms_mean           = round(mean(cells$n_firms, na.rm = TRUE)),
+      mean_top5_overlap      = mean(cells$overlap_top5,      na.rm = TRUE),
+      mean_top10_overlap     = mean(cells$overlap_top10,     na.rm = TRUE),
+      mean_top10pct_overlap  = mean(cells$overlap_top10pct,  na.rm = TRUE),
+      mean_top25pct_overlap  = mean(cells$overlap_top25pct,  na.rm = TRUE),
+      mean_top_half_overlap  = mean(cells$overlap_top_half,  na.rm = TRUE))
   }
 }
 overlap <- bind_rows(rows) %>%

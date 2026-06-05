@@ -188,6 +188,28 @@ build_year_one <- function(t, b2b_t, eutl_t, acc_t, imp_t, chars_t, z_t,
   }
   d2 <- decomp(nace2d_vec); d4 <- decomp(nace4d_vec)
 
+  # Same-sector / other-sector decomposition of u (first-step by immediate
+  # supplier sector). Since u = A %*% nu, the split is clean:
+  #   u_same  = (A masked to same-sector pairs) %*% nu
+  #   u_other = u - u_same
+  # Higher-order chains are captured because nu propagates through them.
+  triplet_rows <- row_i[okij]; triplet_cols <- col_j[okij]
+  triplet_vals <- b2b_agg$sales[okij] / cost_vec[triplet_rows]
+
+  build_A_same <- function(sec_vec) {
+    same <- !is.na(sec_vec[triplet_rows]) & !is.na(sec_vec[triplet_cols]) &
+            sec_vec[triplet_rows] == sec_vec[triplet_cols]
+    sparseMatrix(i = triplet_rows[same], j = triplet_cols[same],
+                 x = triplet_vals[same], dims = c(N, N))
+  }
+  A_same_4d <- build_A_same(nace4d_vec)
+  A_same_2d <- build_A_same(nace2d_vec)
+
+  u_same_4d  <- as.numeric(A_same_4d %*% nu)
+  u_same_2d  <- as.numeric(A_same_2d %*% nu)
+  u_other_4d <- u - u_same_4d
+  u_other_2d <- u - u_same_2d
+
   firms <- data.frame(
     vat = all_vats, year = t, source = source_vec,
     nace5d = nace5d_vec, nace4d = nace4d_vec, nace2d = nace2d_vec,
@@ -195,6 +217,8 @@ build_year_one <- function(t, b2b_t, eutl_t, acc_t, imp_t, chars_t, z_t,
     scope1 = scope1_vec, e_cost = eps, nu = nu, u = u,
     across_2d = d2$across, within_2d = d2$within,
     across_4d = d4$across, within_4d = d4$within,
+    u_same_4d = u_same_4d, u_other_4d = u_other_4d,
+    u_same_2d = u_same_2d, u_other_2d = u_other_2d,
     stringsAsFactors = FALSE)
   firms <- firms[firms$nu > 0, ]
 
