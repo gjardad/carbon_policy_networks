@@ -58,9 +58,11 @@ assemble_bundle <- function(yr, scope, proc, out) {
   load(file.path(proc, "deflator_nace4d_2005base.RData"))
   load(file.path(proc, "allocation_glo_balanced", sprintf("alloc_%d.RData", yr)))  # year_firms (vat,scope1)
 
+  message("  [assemble] data loaded; filtering B2B for year ", yr, " ...")
   aa <- df_annual_accounts_selected_sample_key_variables
   colnames(df_b2b_selected_sample)[1:4] <- c("vat_supplier", "vat_buyer", "year", "corr_sales")
   b2b <- df_b2b_selected_sample %>% filter(year == yr, corr_sales > 0)
+  message(sprintf("  [assemble] B2B edges this year: %d", nrow(b2b)))
 
   ets_vat <- firm_year_belgian_euets %>%
     filter(year == yr, in_sample == 1, !is.na(vat)) %>% distinct(vat) %>% pull(vat)
@@ -73,6 +75,7 @@ assemble_bundle <- function(yr, scope, proc, out) {
   }
   subset_vat <- subset_vat[!is.na(subset_vat)]
   n <- length(subset_vat); idx <- setNames(seq_len(n), subset_vat)
+  message(sprintf("  [assemble] subset = %d firms; building cost base + Omega ...", n))
 
   # Total cost = FULL B2B purchases + labor (no carbon, closed economy)
   full_inputs <- b2b %>% group_by(vat_buyer) %>% summarise(inputs = sum(corr_sales), .groups = "drop")
@@ -120,12 +123,15 @@ assemble_bundle <- function(yr, scope, proc, out) {
   nace2d <- setNames(rep(NA_character_, n), subset_vat); nace2d[rev_tab$vat] <- rev_tab$nace2d
 
   tau <- as.integer(subset_vat %in% ets_vat)
-  nu  <- leontief_apply(Omega, e_bar)          # direct solve (production change)
+  # NB: the network-adjusted intensity nu = (I-Omega)^{-1} e_bar is a DIAGNOSTIC only
+  # (the solver computes its own equilibrium objects). It is a large near-singular
+  # sparse solve, so we skip it here to keep assembly fast on the full network.
+  message("  [assemble] done.")
 
   list(meta = list(year = yr, scope = scope, n = n, n_ets = sum(tau),
                    max_rowsum = max(rowSums(Omega), na.rm = TRUE)),
        firms = subset_vat, Omega = Omega, e_bar = e_bar, gamma = gamma,
-       tau = tau, x = x, z = z, total_cost = total_cost, nu = nu, nace2d = nace2d)
+       tau = tau, x = x, z = z, total_cost = total_cost, nace2d = nace2d)
 }
 
 # ============================ TARGETING SCHEMES =============================
