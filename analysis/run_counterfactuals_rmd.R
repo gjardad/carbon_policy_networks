@@ -41,6 +41,8 @@ ROBUST_FRAMINGS <- list(            # (p_lo, p_hi) variants for the alpha robust
 )
 PRICE_GRID <- c(80, 100, 150, 200, 250)     # counterfactual columns
 SCHEMES    <- c("T0")                        # add "T1" once industrial NACE confirmed
+FULL_GRID  <- FALSE   # FALSE: calibrate only the default (sigma,rho) cell + price sweep
+                      #        (fast first run). TRUE: full sigma/rho sweep + robustness.
 # ===========================================================================
 
 # ---- Direct sparse Leontief apply: (I - Omega)^{-1} v  (replaces Neumann) ----
@@ -99,12 +101,17 @@ assemble_bundle <- function(yr, scope, proc, out) {
   rc <- total_cost[Omega@i + 1L]; ok <- !is.na(rc) & rc > 0
   Omega@x[ok] <- Omega@x[ok] / rc[ok]; Omega@x[!ok] <- 0
   rs <- rowSums(Omega)
-  if (max(rs, na.rm = TRUE) >= 1) {            # safety cap (rare with full cost base)
-    bad <- which(rs >= 1)
-    for (r in bad) { a <- Omega@p[r]+1L; bb <- Omega@p[r+1L]; if (bb >= a) Omega@x[a:bb] <- Omega@x[a:bb]*0.99/rs[r] }
-    rs <- rowSums(Omega)
-  }
+  # Cap materials share at MAX_MAT (floor value-added/labor share at 1-MAX_MAT).
+  # Bounds the price-map spectral radius away from 1 -> the price fixed point
+  # converges in ~hundreds of iters instead of thousands. Row-scaling via a
+  # diagonal (correct for dgCMatrix; the old per-@p loop indexed columns as rows).
+  MAX_MAT <- 0.95
+  scl <- ifelse(rs > MAX_MAT, MAX_MAT / rs, 1)
+  if (any(scl < 1)) Omega <- as(Diagonal(x = scl) %*% Omega, "CsparseMatrix")
+  rs <- rowSums(Omega)
   gamma <- 1 - rs
+  message(sprintf("  [assemble] %d firms capped at materials share %.2f; max rowsum now %.4f",
+                  sum(scl < 1), MAX_MAT, max(rs, na.rm = TRUE)))
 
   # Emissions (from the allocation file) and intensity
   z <- setNames(rep(0, n), subset_vat)
@@ -162,32 +169,43 @@ decomp <- function(base, cf) {                                 # scale/technique
   c(dlogZ = dlogZ, technique = technique, quantity = dlogZ - technique)
 }
 
-# ---- 1. Calibrate alpha(sigma,rho): default cell + one-at-a-time sweeps ----
-cells <- unique(rbind(
+# ---- timing probe: how long is one solve? (calibration does ~25-35 per cell) ----
+cat("\nTiming one full_solve ...\n"); .t0 <- Sys.time()
+.probe <- full_solve(80, DEF_SIGMA, DEF_RHO, 2, bundle, bshare)
+cat(sprintf("  one full_solve = %.1f sec  (Z=%.4g) -> expect ~%.0f min per calibrated cell\n",
+            as.numeric(difftime(Sys.time(), .t0, units = "secs")), .probe$Z,
+            as.numeric(difftime(Sys.time(), .t0, units = "secs")) * 30 / 60))
+
+# ---- 1. Calibrate alpha(sigma,rho): default cell (+ sweeps if FULL_GRID) ----
+cells <- if (FULL_GRID) unique(rbind(
   data.frame(sigma = DEF_SIGMA, rho = DEF_RHO),
   data.frame(sigma = SIGMA_GRID, rho = DEF_RHO),
   data.frame(sigma = DEF_SIGMA, rho = RHO_GRID)
-))
-cat("\nCalibrating alpha(sigma,rho) ...\n")
+)) else data.frame(sigma = DEF_SIGMA, rho = DEF_RHO)
+cat(sprintf("\nCalibrating alpha(sigma,rho) over %d cell(s)%s ...\n",
+            nrow(cells), if (FULL_GRID) "" else " [FULL_GRID=FALSE: default cell only]"))
 cal <- lapply(seq_len(nrow(cells)), function(i) {
   s <- cells$sigma[i]; r <- cells$rho[i]
+  cat(sprintf("  cell %d/%d: sigma=%.3f rho=%.2f -> solving ...\n", i, nrow(cells), s, r))
   res <- calibrate_alpha(s, r, bundle, bshare, CAL_PLO, CAL_PHI, TARGET_DLOGZ)
-  cat(sprintf("  sigma=%.3f rho=%.2f -> alpha=%s bracketed=%s\n",
-              s, r, ifelse(is.na(res$alpha), "NA", sprintf("%.3f", res$alpha)), res$bracketed))
+  cat(sprintf("    alpha=%s bracketed=%s\n",
+              ifelse(is.na(res$alpha), "NA", sprintf("%.3f", res$alpha)), res$bracketed))
   gc()    # release sparse-LU memory between cells (avoids SuiteSparse fault over many solves)
   data.frame(sigma = s, rho = r, alpha = res$alpha, bracketed = res$bracketed)
 }) %>% bind_rows()
 write.csv(cal, file.path(out_data, "cf_calibrated_alpha.csv"), row.names = FALSE)
 
-# ---- 2. Robustness: alpha under the alternative price framings (default cell) ----
-robust <- lapply(names(ROBUST_FRAMINGS), function(nm) {
-  pr <- ROBUST_FRAMINGS[[nm]]
-  res <- calibrate_alpha(DEF_SIGMA, DEF_RHO, bundle, bshare, pr[1], pr[2], TARGET_DLOGZ)
-  gc()
-  data.frame(framing = nm, p_lo = pr[1], p_hi = pr[2], alpha = res$alpha, bracketed = res$bracketed)
-}) %>% bind_rows()
-print(robust)
-write.csv(robust, file.path(out_data, "cf_alpha_robustness.csv"), row.names = FALSE)
+# ---- 2. Robustness: alpha under alternative price framings (only if FULL_GRID) ----
+if (FULL_GRID) {
+  robust <- lapply(names(ROBUST_FRAMINGS), function(nm) {
+    pr <- ROBUST_FRAMINGS[[nm]]
+    res <- calibrate_alpha(DEF_SIGMA, DEF_RHO, bundle, bshare, pr[1], pr[2], TARGET_DLOGZ)
+    gc()
+    data.frame(framing = nm, p_lo = pr[1], p_hi = pr[2], alpha = res$alpha, bracketed = res$bracketed)
+  }) %>% bind_rows()
+  print(robust)
+  write.csv(robust, file.path(out_data, "cf_alpha_robustness.csv"), row.names = FALSE)
+}
 
 # ---- 3. Counterfactual matrix: scheme x price, at each calibrated cell ----
 cat("\nRunning counterfactual matrix ...\n")
