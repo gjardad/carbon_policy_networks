@@ -78,7 +78,10 @@ assemble_bundle <- function(yr, scope, proc, out) {
   message(sprintf("  [assemble] subset = %d firms; building cost base + Omega ...", n))
 
   # Total cost = FULL B2B purchases + labor (no carbon, closed economy)
-  full_inputs <- b2b %>% group_by(vat_buyer) %>% summarise(inputs = sum(corr_sales), .groups = "drop")
+  # (group only over subset buyers, not the whole economy)
+  full_inputs <- b2b %>% filter(vat_buyer %in% subset_vat) %>%
+    group_by(vat_buyer) %>% summarise(inputs = sum(corr_sales), .groups = "drop")
+  message("  [assemble] input costs aggregated; assembling Omega ...")
   wages_aa  <- aa %>% filter(year == yr, !is.na(wage_bill)) %>% select(vat, wage_bill)
   wages_ets <- firm_year_belgian_euets %>% filter(year == yr, !is.na(wage_bill)) %>%
     select(vat, wage_bill_ets = wage_bill)
