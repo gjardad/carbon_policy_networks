@@ -43,8 +43,11 @@ abatement_block <- function(p_z, tau, alpha, ebar) {
 }
 
 # ---- Price fixed point ------------------------------------------------------
+# damp=1 (no damping): the materials-share cap makes G a contraction (rho<=0.95),
+# so undamped Picard is stable and ~2x faster than damped. tol=1e-8 is ample for
+# matching aggregate Z. (Profiled: this loop is ~70% of solve time.)
 solve_prices <- function(p_z, sigma, rho, alpha, bundle,
-                         maxit = 2000, tol = 1e-10, damp = 0.5, verbose = FALSE) {
+                         maxit = 2000, tol = 1e-8, damp = 1.0, verbose = FALSE) {
   Omega <- bundle$Omega
   gamma <- bundle$gamma                       # labor+outside (residual) share
   tau   <- bundle$tau
