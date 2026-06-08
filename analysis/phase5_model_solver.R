@@ -42,44 +42,59 @@ abatement_block <- function(p_z, tau, alpha, ebar) {
   list(kappa = kappa, e = e)
 }
 
-# ---- Price fixed point ------------------------------------------------------
-# damp=1 (no damping): the materials-share cap makes G a contraction (rho<=0.95),
-# so undamped Picard is stable and ~2x faster than damped. tol=1e-8 is ample for
-# matching aggregate Z. (Profiled: this loop is ~70% of solve time.)
-solve_prices <- function(p_z, sigma, rho, alpha, bundle,
-                         maxit = 2000, tol = 1e-8, damp = 1.0, verbose = FALSE) {
-  Omega <- bundle$Omega
-  gamma <- bundle$gamma                       # labor+outside (residual) share
-  tau   <- bundle$tau
-  ebar  <- bundle$e_bar
-  n     <- length(gamma)
-
-  mat_share <- rowSums(Omega)                 # materials share = 1 - gamma
-  theta <- Omega
-  pos <- mat_share > 0
-  # row-normalize Omega -> theta (materials CES weights, rows sum to 1)
-  theta@x <- theta@x / mat_share[theta@i + 1L]
-
-  ab <- abatement_block(p_z, tau, alpha, ebar)
-  carbon_term <- rho * tau * p_z * ab$e       # level added to price
-
-  p <- rep(1, n)
+# ---- Anderson-accelerated fixed point: solve x = G(x) -----------------------
+# Depth-m Anderson acceleration. ~5-10x fewer iterations than plain Picard with
+# negligible overhead (a tiny n x m least squares). Falls back to a Picard step
+# if the least squares is rank-deficient. Used for BOTH the price and the
+# quantity (Leontief) systems, since each is a contraction.
+anderson_fp <- function(G, x0, tol = 1e-8, maxit = 200, m = 5, floor = NULL) {
+  x <- x0; g <- G(x); f <- g - x
+  delta <- max(abs(f))
+  if (delta < tol) return(list(x = x, iters = 0L, delta = delta, converged = TRUE))
+  x_prev <- x; f_prev <- f; x <- g                 # first step = plain Picard
+  Xp <- NULL; Ff <- NULL
   for (it in seq_len(maxit)) {
-    if (abs(sigma - 1) < 1e-8) {              # Cobb-Douglas materials nest
-      logPm <- as.numeric(theta %*% log(p))
-      cinput <- exp((1 - gamma) * logPm)
-    } else {
-      agg <- as.numeric(theta %*% (p^(1 - sigma)))   # sum_j theta_ij p_j^{1-sigma}
-      cinput <- agg^((1 - gamma) / (1 - sigma))      # = Pm^{1-gamma}
-    }
-    cinput[!pos] <- 1                          # all-labor firms: input cost = 1
-    p_new <- cinput + ab$kappa + carbon_term
-    delta <- max(abs(p_new - p))
-    p <- damp * p_new + (1 - damp) * p
-    if (delta < tol) { if (verbose) cat(sprintf("  converged it=%d delta=%.2e\n", it, delta)); break }
+    g <- G(x); f <- g - x
+    delta <- max(abs(f))
+    if (delta < tol) break
+    Xp <- cbind(Xp, x - x_prev); Ff <- cbind(Ff, f - f_prev)
+    if (ncol(Ff) > m) { Xp <- Xp[, -1, drop = FALSE]; Ff <- Ff[, -1, drop = FALSE] }
+    x_prev <- x; f_prev <- f
+    gma <- tryCatch(qr.solve(Ff, f), error = function(e) rep(0, ncol(Ff)))
+    x <- as.numeric(x + f - (Xp + Ff) %*% gma)
+    if (!is.null(floor)) x[x < floor] <- floor
   }
-  list(p = p, kappa = ab$kappa, e = ab$e, iters = it, delta = delta,
-       converged = delta < tol)
+  list(x = x, iters = it, delta = delta, converged = delta < tol)
+}
+
+# ---- Price fixed point ------------------------------------------------------
+# Profiled as ~70% of solve time, dominated by the iteration COUNT, so we
+# accelerate it (big-O > constant factors):
+#   - Anderson acceleration (depth m): ~30-50 iters vs ~360 for plain Picard,
+#     negligible per-iter overhead (a tiny n x m least squares). Falls back to a
+#     Picard step if the least squares is rank-deficient.
+#   - Precompute the invariant exponent vector / additive term (avoid redundant work).
+solve_prices <- function(p_z, sigma, rho, alpha, bundle,
+                         maxit = 200, tol = 1e-8, m = 5, verbose = FALSE) {
+  Omega <- bundle$Omega; gamma <- bundle$gamma; tau <- bundle$tau; ebar <- bundle$e_bar
+  n <- length(gamma)
+  mat_share <- rowSums(Omega); pos <- mat_share > 0
+  theta <- Omega; theta@x <- theta@x / mat_share[theta@i + 1L]   # row-normalized (invariant)
+  cd <- abs(sigma - 1) < 1e-8
+  expo <- (1 - gamma) / (1 - sigma)                              # invariant per call
+  ab <- abatement_block(p_z, tau, alpha, ebar)
+  a_term <- ab$kappa + rho * tau * p_z * ab$e                    # invariant additive term
+
+  Gmap <- function(p) {
+    ci <- if (cd) exp((1 - gamma) * as.numeric(theta %*% log(p)))
+          else    as.numeric(theta %*% (p^(1 - sigma)))^expo
+    ci[!pos] <- 1
+    ci + a_term
+  }
+
+  r <- anderson_fp(Gmap, rep(1, n), tol = tol, maxit = maxit, m = m, floor = 1e-12)
+  if (verbose) cat(sprintf("  price solve: it=%d delta=%.2e\n", r$iters, r$delta))
+  list(p = r$x, kappa = ab$kappa, e = ab$e, iters = r$iters, delta = r$delta, converged = r$converged)
 }
 
 # ---- Final-demand shares b_i (Cobb-Douglas), calibrated from base sales -----
@@ -115,8 +130,10 @@ solve_quantities <- function(sol, p_z, sigma, rho, bundle, b) {
   phi <- Diagonal(x = mat_share) %*% theta_norm          # row j sums to (1-gamma_j)
   M   <- Diagonal(x = c_input / p) %*% phi               # M_ji = phi_ji c_input_j/p_j
 
-  A  <- Diagonal(n) - t(M)
-  s1 <- as.numeric(Matrix::solve(A, b))                  # sales up to scale (E=1)
+  # s1 solves s = b + M' s (E=1). M' is sub-stochastic (contraction) -> iterate
+  # with Anderson instead of a direct sparse LU (matvecs scale better with n).
+  Mt <- as(t(M), "CsparseMatrix")
+  s1 <- anderson_fp(function(s) b + as.numeric(Mt %*% s), b, tol = 1e-9)$x
   E  <- 1 / sum(gamma * (c_input / p) * s1)               # labor market, L=1
   s  <- E * s1
   x  <- s / p
