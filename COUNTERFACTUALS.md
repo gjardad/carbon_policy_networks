@@ -53,7 +53,7 @@ production-network paper — we must leave the benchmark behind in **two distinc
 - **(A) Higher carbon prices.** Crank $p_z$ above the realized path so that cross-firm price gaps
   become large enough for reallocation to bite.
 - **(B) Different targeting.** Change the targeting vector $\tau$ away from the realized EU ETS scheme
-  (universal industrial coverage, centrality-based, sector-level — see [§4](#4-the-targeting-schemes)).
+  (universal industrial coverage, centrality-based — see [§4](#4-the-targeting-schemes)).
 
 **Transparency requirement.** Because every interesting counterfactual moves *both* dials at once,
 when we report results we must always **decompose the total change into the part due to higher prices
@@ -357,25 +357,40 @@ Carbon Price Viewer; Rennert et al. (2022, Nature); US EPA 2023 SCGHG report.*
 These are the targeting vectors $\tau$ from `THIS_PROJECT.md §3`. Each defines one column of the
 counterfactual matrix in [§5](#5-the-counterfactual-matrix).
 
+Three schemes (sector-level T3 dropped). Each defines one row of the counterfactual matrix
+([§5](#5-the-counterfactual-matrix)), implemented in `analysis/run_counterfactuals_rmd.R`.
+
 | # | Scheme | Definition of $\tau$ | Question it answers |
 |---|--------|----------------------|----------------------|
-| T0 | **Actual EU ETS** (benchmark) | $\tau_i = 1$ iff firm $i$ is an actual EU ETS installation. | What did the realized policy do? (validation + baseline) |
-| T1 | **Universal industrial** | $\tau_i = 1$ for all industrial emitters from day 1. | What if all industrial emissions had been priced from the start? |
-| T2 | **Centrality-targeted** | $\tau_i = 1$ for the highest-network-centrality firms, holding **the same % of emissions covered** as T0. | For a fixed coverage budget, does targeting the network-central firms beat targeting the biggest emitters? |
-| T3 | **Sector-level (all-or-nothing)** | $\tau_i = 1$ for *every* firm in a targeted NACE sector, $0$ otherwise; sectors chosen to match a coverage target. | What is lost/gained by regulating at the sector level instead of the firm level? |
+| T0 | **Actual EU ETS** (benchmark) | $\tau_i = 1$ iff firm $i$ is an actual EU ETS installation (`in_sample==1`). | What did the realized policy do? (baseline) |
+| T1 | **Universal industrial** | $\tau_i = 1$ for all firms in industrial NACE (mining 05–09, manufacturing 10–33, energy 35). | What if all industrial emissions had been priced? |
+| T2 | **Centrality-targeted** | $\tau_i = 1$ for the most-central firms, **holding emission coverage equal to T0**. | For a fixed coverage budget, does targeting the network-central firms beat targeting the actual ETS set? |
 
-**Coverage normalization.** T2 (and optionally T3) must be defined to hold a coverage statistic fixed
-against T0 — otherwise differences confound "who" with "how much." Default normalization: **share of
-total (private-sector) emissions covered**. Robustness: share of firms, or share of output. State
-explicitly which is held fixed in every table.
+**Coverage normalization.** T2 holds **the share of (base-year) emissions covered equal to T0**: rank
+firms by centrality, add them until cumulative base emissions reach the ETS set's emission total. (So
+T0 and T2 cover the same emissions; the difference is *which* firms.)
 
-**Centrality measure (T2).** Uses the network-centrality object from the model
-(`sections/quantitative.tex` — the input-weighted position summarized by the relevant Leontief-inverse
-column / the sufficient-statistic weights), **not** raw emissions or raw size. The companion
-characterization exercise (`THIS_PROJECT.md §3`) regresses this centrality measure on
-policymaker-observables — size, emissions, emission intensity, upstream emissions, sector — to ask how
-far a real-world regulator could approximate T2 with observables. That regression is a prerequisite for
-T2 being policy-relevant and is tracked as its own deliverable ([§7](#7-open-questions--todos)).
+**Centrality measure (T2) — implemented in [analysis/phase6_centrality.R](analysis/phase6_centrality.R).**
+We measure centrality *operationally* with the solver: for each candidate firm $j$, **target $j$ alone**
+at the benchmark price and decompose its marginal emission effect (path-integral, two-point) into
+- **technique$_j$** — $j$'s own within-firm abatement, and
+- **composition$_j$** — the reallocation the network does in response to $j$ being targeted (the
+  network-position / sufficient-statistic content), plus a small gross-output scale.
+
+`total$_j$ = technique$_j$ + composition$_j$ + scale$_j$` is $j$'s marginal $d\log Z$. **T2 targets by
+`total`** (the firms that cut the most emissions per unit coverage); the **`composition` ranking** is the
+pure network-centrality object, reported as a diagnostic. The characterization (phase6 console output +
+`cf_centrality.csv`) answers:
+1. **Who are the central firms** — top by `total`, with NACE / emissions / ETS status.
+2. **Centrality set vs ETS at equal coverage** — Jaccard overlap of the top-by-centrality set (matched
+   to ETS emission coverage) with the actual ETS set.
+3. **Reallocation-only vs total ranking** — Spearman + top-$K$ Jaccard between the `composition` ranking
+   and the `total` ranking (how far network-centrality departs from "just the big emitters").
+
+The centrality set is fixed once at the benchmark $(\sigma,\rho,\alpha)=(0.5,0.5,4)$ and then evaluated
+across the σ sweep and price grid — a policymaker picks the set once. *(Deferred: regress centrality on
+policymaker-observables — size, emissions, intensity, upstream emissions, sector — to ask how well a
+regulator could approximate T2 with observables.)*
 
 ---
 
@@ -392,10 +407,9 @@ $(\sigma,\rho)$ are chosen).
   T0 EU ETS   │  BENCHMARK (§5)  │          │          │          │
   T1 universal│                  │          │          │          │
   T2 central. │                  │          │          │          │
-  T3 sector   │                  │          │          │          │
               └──────────────────┴──────────┴──────────┴──────────┘
-   each cell → decompose d log Z into {scale, abatement, reallocation},
-               over (σ, ρ) with α = α(σ,ρ) pinned by calibration
+   each cell → decompose d log Z into {scale, technique, composition},
+               over swept σ at external (α, ρ)   [Option B]
 ```
 
 - **Rows** = targeting schemes (dimension B).
@@ -592,7 +606,7 @@ For every cell (and every step of the §6 decomposition), report:
       reference ([§3](#3-structural-parameters-plugged-in), price-levels table).
 - [ ] **Centrality characterization regression** — regress the centrality measure on
       size/emissions/intensity/upstream-emissions/sector; needed before T2 is policy-relevant ([§4](#4-the-targeting-schemes)).
-- [ ] **Coverage normalization** — lock the statistic held fixed across T0/T2/T3 ([§4](#4-the-targeting-schemes)).
+- [x] **Coverage normalization** — DONE: T2 matched to T0 on **base-year emission coverage** ([§4](#4-the-targeting-schemes)).
 - [x] **Data scope** — DECIDED (see P4 above): full private-sector panel for the final runs so leakage
       to untargeted competitors is in the model; ETS+neighbors subset for development. *Scope limit to
       record:* the model is closed, so imports are dropped — no cross-border (import) leakage channel,
