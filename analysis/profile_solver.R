@@ -10,10 +10,12 @@ suppressMessages({ library(Matrix); library(dplyr) })
 .cand <- c("C:/Users/jardang/Documents/carbon_policy_networks/utils/paths.R",
            "c:/Users/jota_/Documents/carbon_policy_networks/utils/paths.R")
 source(.cand[file.exists(.cand)][1])
+source(file.path(project_root, "analysis", "model_assembly.R"))
 source(file.path(project_root, "analysis", "phase5_model_solver.R"))
 
-YEAR <- 2019; N <- 20
-b <- load_bundle(YEAR); bshare <- base_final_shares(b)
+YEAR <- 2019; SCOPE <- "ets_neighbors"; N <- 20
+# assemble the bundle from raw data (no pre-saved file needed on RMD)
+b <- assemble_bundle(YEAR, SCOPE, proc_data, out_data); bshare <- base_final_shares(b)
 cat(sprintf("Bundle: %d firms, %d ETS\n", length(b$gamma), sum(b$tau)))
 
 invisible(full_solve(80, 0.5, 1, 2, b, bshare))                 # warm up
