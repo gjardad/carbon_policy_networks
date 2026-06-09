@@ -117,10 +117,27 @@ vs. reallocation ($\sigma\times$Cov).
 
 ## 3. Structural parameters plugged in
 
+> **STRATEGY UPDATE (supersedes the α-calibration discussion below).** We no longer calibrate α
+> to match the Belgian aggregate emission change. Doing so was *internally inconsistent*: it treats
+> the whole −24pp as carbon-caused (forcing α to absorb it), yet the model delivers that ΔZ together
+> with a large output/reallocation response that Belgium did **not** have (firms abated *in place*;
+> Colmer: no contraction) — so we'd be believing the model's emission response while disowning its
+> output response (same equilibrium). Instead (**Option B**): **set α and ρ externally from the
+> literature, sweep σ.** The *benchmark* is just the model at the realized price under those
+> parameters — internally consistent, and we don't pretend to reproduce every Belgian moment.
+> - **α** (abatement elasticity): Martinsson (2024), |d log e/d log p| = α/(α−1). All-firm ≈2.08 → α≈1.9;
+>   top-decile ≈1.3 → α≈4.3. Our regulated firms are top emitters → **default α = 4** (robustness {2, 4}).
+> - **ρ** (pass-through): AIK own-cost ≈0.5–0.7 → **default ρ = 0.5** (robustness {0.5, 0.75, 1}).
+> - **σ**: unidentified in Belgium → **swept** {0.034, 0.5, 1, 4.7} (the headline).
+> The model's reallocation/output is then a *prediction* (governed by σ, ρ), reported and compared to
+> Belgium's ≈0 — not something α is forced to cancel. The calibration text below (§ "Calibration plan")
+> is retained for the record but no longer the strategy. See COMPUTATIONAL.md for the decomposition.
+
 | Parameter | Symbol | How we set it | Source |
 |-----------|--------|---------------|--------|
 | Input elasticity of substitution | $\sigma_i$ | **Plugged from literature, swept over $\{0.034, 0.5, 1, 4.7\}$** — near-Leontief to highly substitutable. $\sigma$ enters reallocation **linearly** (it scales the channel; the covariance sets the sign). Common $\sigma$ first; sector-specific later. | Atalay (2017); Baqaee–Farhi (2019); Peter & Ruane (2023) — see below |
-| Abatement elasticity | $\alpha_i>1$ (giving $d\log e_i/d\log p_z = \tfrac{\alpha_i}{1-\alpha_i}<0$) | **Calibrated, not swept:** for each $(\sigma,\rho)$, solve for the $\alpha(\sigma,\rho)$ that makes the global model reproduce Belgium's 2005–2022 within-cell emission change. Governs the technique channel via $e_i=(1-\kappa_i)^{\alpha_i}\bar e_i$; own-abatement is independent of $\sigma,\rho$. Homogeneous across firms for now. ($\alpha>1$ required for a convex abatement problem.) | Calibrated to [REALLOCATION_FINDINGS.md](REALLOCATION_FINDINGS.md); cross-checked vs. Martinsson et al. (2024), Colmer et al. (2024) — see below |
+| Abatement elasticity | $\alpha_i>1$ (giving $d\log e_i/d\log p_z = \tfrac{\alpha_i}{1-\alpha_i}<0$) | **Set externally** (Option B, see box above): default $\alpha=4$ (top-emitter), robustness $\{2,4\}$. Governs the technique channel via $e_i=(1-\kappa_i)^{\alpha_i}\bar e_i$; independent of $\sigma,\rho$. ($\alpha>1$ for convexity.) | Martinsson et al. (2024) emission-price elasticity → $\alpha=m/(m-1)$ |
+| Cost pass-through | $\rho$ | **Set externally** (Option B): default $\rho=0.5$, robustness $\{0.5,0.75,1\}$. | Amiti–Itskhoki–Konings (own-cost ≈0.5–0.7) |
 | No-policy emission intensity | $\bar e_i$ | Firm's pre-policy emissions per unit output; heterogeneous within sector. Measured. | EUTL + imputation |
 | Emission intensity vector | $\mathcal E=[e_1,\dots,e_N]$; network-adjusted $\Psi_e=\Psi\mathcal E$ | Measured intensities; network-adjusted via the Leontief inverse. | EUTL + imputation |
 | CES input productivities | $\theta_{ij}$ | Calibrated from observed expenditure shares (standard CES inversion). **Note:** in the current model $\theta$ is *input productivity*, not an emission weight. | NBB B2B (cost shares) |
