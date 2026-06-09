@@ -147,14 +147,16 @@ solve_quantities <- function(sol, p_z, sigma, rho, bundle, b) {
   s  <- E * s1
   x  <- s / p
   z  <- e * x
-  list(s = s, x = x, z = z, Z = sum(z), E = E)
+  yfin <- b * E / p; ok <- b > 0                          # physical final demand
+  realY <- exp(sum(b[ok] * log(pmax(yfin[ok], 1e-300))))  # CD real consumption = welfare (real GDP)
+  list(s = s, x = x, z = z, Z = sum(z), E = E, realY = realY)
 }
 
 full_solve <- function(p_z, sigma, rho, alpha, bundle, b) {
   sol <- solve_prices(p_z, sigma, rho, alpha, bundle)
   q   <- solve_quantities(sol, p_z, sigma, rho, bundle, b)
   list(p = sol$p, e = sol$e, kappa = sol$kappa, converged = sol$converged,
-       x = q$x, z = q$z, Z = q$Z)
+       x = q$x, z = q$z, Z = q$Z, realY = q$realY)
 }
 
 # ---- Path-integral decomposition (Baqaee-Farhi differential approach) --------
@@ -195,19 +197,21 @@ decompose_path_grid <- function(grid, sigma, rho, alpha, bundle, b) {
   stopifnot(grid[1] == 0, all(diff(grid) > 0))
   em   <- which(bundle$e_bar > 0)
   sols <- lapply(grid, function(pz) full_solve(pz, sigma, rho, alpha, bundle, b))
-  Zof  <- function(s) sum(s$z[em]); Yof <- function(s) sum(s$x)  # Y = aggregate real output
-  Z0 <- Zof(sols[[1L]]); Y0 <- Yof(sols[[1L]])
+  Zof  <- function(s) sum(s$z[em])                               # aggregate emissions
+  Z0 <- Zof(sols[[1L]]); Y0 <- sols[[1L]]$realY                  # base emissions, base real GDP
   # Three-way Grossman-Krueger split: d log Z = scale + technique + composition.
-  #   scale       = d log Y                       (aggregate output, ~0 in data)
+  #   scale       = d log Y (Y = REAL GDP / welfare; ~0 here: tax fully rebated,
+  #                 efficient start -> no first-order allocative-efficiency change.
+  #                 NB: NOT gross output sum_i x_i, which de-roundabouts and is not Y.)
   #   technique   = sum_i w_i d log e_i           (within-firm intensity)
-  #   composition = sum_i w_i d log(x_i/Y)        (between-firm reallocation; ~0 in data)
+  #   composition = sum_i w_i d log x_i - scale   (between-firm reallocation)
   tech <- 0; quant <- 0; rows <- vector("list", length(grid) - 1L)
   for (k in seq_len(length(grid) - 1L)) {
     s0 <- sols[[k]]; s1 <- sols[[k + 1L]]
     w  <- logmean(s1$z[em], s0$z[em]) / logmean(Zof(s1), Zof(s0))
     tech  <- tech  + sum(w * (log(s1$e[em]) - log(s0$e[em])))   # technique (integral)
-    quant <- quant + sum(w * (log(s1$x[em]) - log(s0$x[em])))   # technique-weighted output change
-    scale <- log(Yof(s1)) - log(Y0)                             # cumulative scale
+    quant <- quant + sum(w * (log(s1$x[em]) - log(s0$x[em])))   # emission-weighted output change
+    scale <- log(s1$realY) - log(Y0)                            # real GDP change (~0)
     rows[[k]] <- data.frame(p_z = grid[k + 1L], dlogZ = log(Zof(s1)) - log(Z0),
                             scale = scale, technique = tech, composition = quant - scale,
                             mean_price = mean(s1$p))
