@@ -99,10 +99,10 @@ assemble_bundle <- function(yr, scope, proc, out) {
 
 # Targeting vector tau for a given scheme.
 get_tau <- function(scheme, bundle) {
-  if (scheme == "T0") return(bundle$tau)                       # actual EU ETS
-  if (scheme == "T1") {                                        # universal industrial
+  if (scheme == "actual_ets") return(bundle$tau)               # actual EU ETS
+  if (scheme == "universal_industrial") {                      # all industrial emitters
     ind <- sprintf("%02d", c(5:9, 10:33, 35))                  # mining, manufacturing, energy
     return(as.integer(!is.na(bundle$nace2d) & bundle$nace2d %in% ind))
   }
-  stop(sprintf("scheme %s not implemented (T2 centrality / T3 sector pending)", scheme))
+  stop(sprintf("scheme '%s' not handled by get_tau (centrality is built in cf_common.R)", scheme))
 }

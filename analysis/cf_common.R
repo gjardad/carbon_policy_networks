@@ -48,16 +48,19 @@ if (FULL_GRID) cells <- unique(rbind(cells,
 path_grid <- sort(unique(c(seq(0, max(PRICE_GRID), by = PATH_STEP), PRICE_GRID)))
 
 # ---- targeting vector for a scheme ----
+#   "actual_ets"           = the realized EU ETS installations (benchmark)
+#   "universal_industrial" = every industrial emitter (NACE 05-09, 10-33, 35)
+#   "centrality"           = most-central firms, emission coverage matched to ETS
 get_scheme_tau <- function(scheme) {
-  if (scheme == "T2") {                                   # centrality (needs phase6 output)
+  if (scheme == "centrality") {                           # needs phase6_centrality.R output
     f <- file.path(out_data, "cf_centrality.csv")
-    if (!file.exists(f)) stop("cf_centrality.csv not found - run phase6_centrality.R first (for T2)")
+    if (!file.exists(f)) stop("cf_centrality.csv not found - run phase6_centrality.R first (for centrality)")
     cf <- read.csv(f); ord <- order(cf$total)             # most-reducing first
     nsel <- which(cumsum(cf$z[ord]) >= sum(cf$z[cf$ets == 1]))[1]
     if (is.na(nsel)) nsel <- length(ord)
     return(as.integer(bundle$firms %in% cf$vat[ord][seq_len(nsel)]))
   }
-  get_tau(scheme, bundle)                                 # T0 (ETS), T1 (industrial)
+  get_tau(scheme, bundle)                                 # actual_ets, universal_industrial
 }
 
 # ---- run one scheme across cells x prices; returns a data.frame ----

@@ -1,5 +1,5 @@
 ###############################################################################
-# phase6_centrality.R  —  firm-level centrality + characterization (T2 input)
+# phase6_centrality.R  —  firm-level centrality + characterization (centrality-scheme input)
 #
 # Centrality = the marginal emission effect of targeting a single firm j (at the
 # benchmark price), via the solver, decomposed into:
