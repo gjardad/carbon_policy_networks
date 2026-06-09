@@ -48,20 +48,29 @@ abatement_block <- function(p_z, tau, alpha, ebar) {
 # if the least squares is rank-deficient. Used for BOTH the price and the
 # quantity (Leontief) systems, since each is a contraction.
 anderson_fp <- function(G, x0, tol = 1e-8, maxit = 200, m = 5, floor = NULL) {
+  n <- length(x0)
   x <- x0; g <- G(x); f <- g - x
   delta <- max(abs(f))
   if (delta < tol) return(list(x = x, iters = 0L, delta = delta, converged = TRUE))
   x_prev <- x; f_prev <- f; x <- g                 # first step = plain Picard
-  Xp <- NULL; Ff <- NULL
+  # Preallocated ring-buffer history (avoid cbind reallocation each iter).
+  Xp <- matrix(0, n, m); Ff <- matrix(0, n, m); ns <- 0L; col <- 0L
   for (it in seq_len(maxit)) {
     g <- G(x); f <- g - x
     delta <- max(abs(f))
     if (delta < tol) break
-    Xp <- cbind(Xp, x - x_prev); Ff <- cbind(Ff, f - f_prev)
-    if (ncol(Ff) > m) { Xp <- Xp[, -1, drop = FALSE]; Ff <- Ff[, -1, drop = FALSE] }
-    x_prev <- x; f_prev <- f
-    gma <- tryCatch(qr.solve(Ff, f), error = function(e) rep(0, ncol(Ff)))
-    x <- as.numeric(x + f - (Xp + Ff) %*% gma)
+    col <- (col %% m) + 1L
+    Xp[, col] <- x - x_prev; Ff[, col] <- f - f_prev
+    ns <- min(ns + 1L, m); x_prev <- x; f_prev <- f
+    if (ns == m) { Xs <- Xp; Fs <- Ff }            # no copy in steady state
+    else { Xs <- Xp[, seq_len(ns), drop = FALSE]; Fs <- Ff[, seq_len(ns), drop = FALSE] }
+    # least squares argmin||f - Fs gma|| via the m x m normal equations (tiny solve),
+    # not a QR of the n x ns matrix; regularize for stability near convergence.
+    gma <- tryCatch({
+      A <- crossprod(Fs)
+      as.numeric(solve(A + (1e-10 * mean(diag(A))) * diag(ns), crossprod(Fs, f)))
+    }, error = function(e) rep(0, ns))
+    x <- as.numeric(x + f - Xs %*% gma - Fs %*% gma)   # no (Xs+Fs) temp array
     if (!is.null(floor)) x[x < floor] <- floor
   }
   list(x = x, iters = it, delta = delta, converged = delta < tol)
