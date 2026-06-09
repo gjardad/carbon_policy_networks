@@ -197,23 +197,25 @@ decompose_path_grid <- function(grid, sigma, rho, alpha, bundle, b) {
   stopifnot(grid[1] == 0, all(diff(grid) > 0))
   em   <- which(bundle$e_bar > 0)
   sols <- lapply(grid, function(pz) full_solve(pz, sigma, rho, alpha, bundle, b))
-  Zof  <- function(s) sum(s$z[em])                               # aggregate emissions
-  Z0 <- Zof(sols[[1L]]); Y0 <- sols[[1L]]$realY                  # base emissions, base real GDP
+  Zof <- function(s) sum(s$z[em]); Yof <- function(s) sum(s$x)   # emissions; gross output (all firms)
+  Z0 <- Zof(sols[[1L]]); Y0 <- Yof(sols[[1L]]); RY0 <- sols[[1L]]$realY
   # Three-way Grossman-Krueger split: d log Z = scale + technique + composition.
-  #   scale       = d log Y (Y = REAL GDP / welfare; ~0 here: tax fully rebated,
-  #                 efficient start -> no first-order allocative-efficiency change.
-  #                 NB: NOT gross output sum_i x_i, which de-roundabouts and is not Y.)
-  #   technique   = sum_i w_i d log e_i           (within-firm intensity)
-  #   composition = sum_i w_i d log x_i - scale   (between-firm reallocation)
+  #   scale       = d log Y, Y = GROSS output sum_i x_i  (the emissions-relevant pie;
+  #                 NOT zero -- it de-roundabouts as dirty intermediate production shrinks).
+  #   technique   = sum_i w_i d log e_i              (within-firm intensity)
+  #   composition = sum_i w_i d log(x_i / Y)         (between-firm reallocation)
+  # We ALSO report realGDP = d log(real consumption/welfare), which IS ~0 -- to show the
+  # gross-output decline is reallocation/de-roundabouting, not a welfare/efficiency loss.
   tech <- 0; quant <- 0; rows <- vector("list", length(grid) - 1L)
   for (k in seq_len(length(grid) - 1L)) {
     s0 <- sols[[k]]; s1 <- sols[[k + 1L]]
     w  <- logmean(s1$z[em], s0$z[em]) / logmean(Zof(s1), Zof(s0))
     tech  <- tech  + sum(w * (log(s1$e[em]) - log(s0$e[em])))   # technique (integral)
     quant <- quant + sum(w * (log(s1$x[em]) - log(s0$x[em])))   # emission-weighted output change
-    scale <- log(s1$realY) - log(Y0)                            # real GDP change (~0)
+    scale <- log(Yof(s1)) - log(Y0)                            # GROSS output change (de-roundabouts)
     rows[[k]] <- data.frame(p_z = grid[k + 1L], dlogZ = log(Zof(s1)) - log(Z0),
                             scale = scale, technique = tech, composition = quant - scale,
+                            realGDP = log(s1$realY) - log(RY0),  # welfare diagnostic (~0)
                             mean_price = mean(s1$p))
   }
   do.call(rbind, rows)

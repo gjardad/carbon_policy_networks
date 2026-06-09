@@ -91,7 +91,8 @@ for (i in seq_len(nrow(cells))) {
     dec <- dec[dec$p_z %in% PRICE_GRID, ]                          # keep the requested columns
     results[[k]] <- data.frame(scheme = sch, p_z = dec$p_z, sigma = s, rho = r, alpha = a,
                                dlogZ = dec$dlogZ, scale = dec$scale, technique = dec$technique,
-                               composition = dec$composition, mean_price = dec$mean_price)
+                               composition = dec$composition, realGDP = dec$realGDP,
+                               mean_price = dec$mean_price)
     k <- k + 1
   }
   gc()    # release sparse-LU memory between cells
