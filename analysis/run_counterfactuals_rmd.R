@@ -44,7 +44,8 @@ DEF_ALPHA  <- 4                       # top-emitter (our regulated firms)
 
 PRICE_GRID <- c(80, 100, 150, 200, 250)   # benchmark = 80 (realized 2022); rest counterfactual
 PATH_STEP  <- 10   # EUR/tCO2 step for the path-integral decomposition grid (0 -> max price)
-SCHEMES    <- c("T0")                 # add "T1" once industrial NACE confirmed
+SCHEMES    <- c("T0", "T1", "T2")     # T0 = actual ETS; T1 = universal industrial; T2 = centrality
+                                      # (T2 needs cf_centrality.csv from phase6_centrality.R)
 FULL_GRID  <- FALSE  # FALSE: sweep sigma at (DEF_RHO, DEF_ALPHA). TRUE: also sweep rho and alpha.
 # ===========================================================================
 
@@ -74,8 +75,26 @@ if (FULL_GRID) cells <- unique(rbind(cells,
   data.frame(sigma = DEF_SIGMA, rho = RHO_GRID, alpha = DEF_ALPHA),           # rho robustness
   data.frame(sigma = DEF_SIGMA, rho = DEF_RHO,  alpha = ALPHA_GRID)))         # alpha robustness
 
+# ---- Targeting vectors for each scheme (T2 reads the centrality ranking) ----
+# T2 = target the most-central firms (by total emission reduction) holding the
+# emission coverage equal to the actual ETS set. Needs cf_centrality.csv from
+# phase6_centrality.R; if missing, T2 is skipped with a warning.
+scheme_tau <- list()
+for (sch in SCHEMES) {
+  if (sch == "T2") {
+    f <- file.path(out_data, "cf_centrality.csv")
+    if (!file.exists(f)) { warning("cf_centrality.csv not found - run phase6_centrality.R first; skipping T2"); next }
+    cf <- read.csv(f); ord <- order(cf$total)                       # most-reducing first
+    nsel <- which(cumsum(cf$z[ord]) >= sum(cf$z[cf$ets == 1]))[1]
+    if (is.na(nsel)) nsel <- length(ord)
+    scheme_tau[["T2"]] <- as.integer(bundle$firms %in% cf$vat[ord][seq_len(nsel)])
+    cat(sprintf("  T2: %d central firms (emission coverage matched to ETS)\n", nsel))
+  } else scheme_tau[[sch]] <- get_tau(sch, bundle)
+}
+SCHEMES <- names(scheme_tau)   # drop any skipped scheme
+
 # ---- Counterfactual matrix: (cell x scheme x price), BF path-integral decomposition ----
-# d log Z = scale (real GDP, ~0) + technique (abatement) + composition (reallocation),
+# d log Z = scale (gross output) + technique (abatement) + composition (reallocation),
 # integrated along p_z: 0 -> target. Benchmark = the p_z=80 row (realized 2022); the
 # rest are counterfactuals. One fine grid of solves gives all price columns at once.
 cat(sprintf("\nRunning %d parameter cell(s) x %d scheme(s) [path-integral decomposition] ...\n",
@@ -86,7 +105,7 @@ for (i in seq_len(nrow(cells))) {
   s <- cells$sigma[i]; r <- cells$rho[i]; a <- cells$alpha[i]
   cat(sprintf("  cell %d/%d: sigma=%.3f rho=%.2f alpha=%.2f ...\n", i, nrow(cells), s, r, a))
   for (sch in SCHEMES) {
-    bsch <- bundle; bsch$tau <- get_tau(sch, bundle)
+    bsch <- bundle; bsch$tau <- scheme_tau[[sch]]
     dec <- decompose_path_grid(path_grid, s, r, a, bsch, bshare)   # cumulative at each node
     dec <- dec[dec$p_z %in% PRICE_GRID, ]                          # keep the requested columns
     results[[k]] <- data.frame(scheme = sch, p_z = dec$p_z, sigma = s, rho = r, alpha = a,
