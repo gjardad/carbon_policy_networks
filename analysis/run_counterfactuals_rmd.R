@@ -113,8 +113,8 @@ for (i in seq_len(nrow(cal))) {
     dec <- decompose_path_grid(path_grid, s, r, a, bsch, bshare)   # cumulative at each node
     dec <- dec[dec$p_z %in% PRICE_GRID, ]                          # keep the requested columns
     results[[k]] <- data.frame(scheme = sch, p_z = dec$p_z, sigma = s, rho = r, alpha = a,
-                               dlogZ = dec$dlogZ, technique = dec$technique,
-                               reallocation = dec$reallocation, mean_price = dec$mean_price)
+                               dlogZ = dec$dlogZ, scale = dec$scale, technique = dec$technique,
+                               composition = dec$composition, mean_price = dec$mean_price)
     k <- k + 1
   }
   gc()    # release sparse-LU memory between calibrated cells

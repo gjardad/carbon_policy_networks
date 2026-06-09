@@ -195,15 +195,21 @@ decompose_path_grid <- function(grid, sigma, rho, alpha, bundle, b) {
   stopifnot(grid[1] == 0, all(diff(grid) > 0))
   em   <- which(bundle$e_bar > 0)
   sols <- lapply(grid, function(pz) full_solve(pz, sigma, rho, alpha, bundle, b))
-  Zof  <- function(s) sum(s$z[em]); Z0 <- Zof(sols[[1L]])
-  tech <- 0; real <- 0; rows <- vector("list", length(grid) - 1L)
+  Zof  <- function(s) sum(s$z[em]); Yof <- function(s) sum(s$x)  # Y = aggregate real output
+  Z0 <- Zof(sols[[1L]]); Y0 <- Yof(sols[[1L]])
+  # Three-way Grossman-Krueger split: d log Z = scale + technique + composition.
+  #   scale       = d log Y                       (aggregate output, ~0 in data)
+  #   technique   = sum_i w_i d log e_i           (within-firm intensity)
+  #   composition = sum_i w_i d log(x_i/Y)        (between-firm reallocation; ~0 in data)
+  tech <- 0; quant <- 0; rows <- vector("list", length(grid) - 1L)
   for (k in seq_len(length(grid) - 1L)) {
     s0 <- sols[[k]]; s1 <- sols[[k + 1L]]
     w  <- logmean(s1$z[em], s0$z[em]) / logmean(Zof(s1), Zof(s0))
-    tech <- tech + sum(w * (log(s1$e[em]) - log(s0$e[em])))
-    real <- real + sum(w * (log(s1$x[em]) - log(s0$x[em])))
+    tech  <- tech  + sum(w * (log(s1$e[em]) - log(s0$e[em])))   # technique (integral)
+    quant <- quant + sum(w * (log(s1$x[em]) - log(s0$x[em])))   # technique-weighted output change
+    scale <- log(Yof(s1)) - log(Y0)                             # cumulative scale
     rows[[k]] <- data.frame(p_z = grid[k + 1L], dlogZ = log(Zof(s1)) - log(Z0),
-                            technique = tech, reallocation = real,
+                            scale = scale, technique = tech, composition = quant - scale,
                             mean_price = mean(s1$p))
   }
   do.call(rbind, rows)
