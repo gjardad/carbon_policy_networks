@@ -29,7 +29,14 @@ YEAR <- 2019; SCOPE <- "ets_neighbors"
 PZ <- 80; SIGMA <- 0.5; RHO <- 0.5; ALPHA <- 4      # benchmark parameters (Option B)
 CANDIDATE_N <- 1000                                  # rank the top-N emitters as candidates
 
-bundle <- assemble_bundle(YEAR, SCOPE, proc_data, out_data)
+# assembled bundle (cached; shared with cf_common.R / the counterfactual runners)
+bundle_file <- file.path(out_data, sprintf("model_inputs_%d_%s.RData", YEAR, SCOPE))
+if (file.exists(bundle_file)) {
+  cat("Loading cached bundle:", basename(bundle_file), "\n"); load(bundle_file)
+} else {
+  cat("Assembling bundle (first run; cached for reuse) ...\n")
+  bundle <- assemble_bundle(YEAR, SCOPE, proc_data, out_data); save(bundle, file = bundle_file)
+}
 bshare <- base_final_shares(bundle)
 em <- which(bundle$e_bar > 0)
 n  <- length(bundle$gamma)
