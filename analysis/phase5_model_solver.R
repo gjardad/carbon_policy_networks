@@ -157,6 +157,58 @@ full_solve <- function(p_z, sigma, rho, alpha, bundle, b) {
        x = q$x, z = q$z, Z = q$Z)
 }
 
+# ---- Path-integral decomposition (Baqaee-Farhi differential approach) --------
+# Z = sum_i e_i x_i. We split d log Z into technique (intensity) and reallocation
+# (physical output, = Corollary 3's d log y_i) by INTEGRATING the two channels
+# along the shock path p_z: 0 -> target, with weights at the CURRENT equilibrium
+# at each step (not base-year weights). This is exact and residual-free, unlike a
+# Laspeyres (base-weight) split. We re-solve the exact equilibrium at each node
+# (robust; no Euler drift) and finite-difference between nodes; with multiplicative
+# log-mean (LMDI) weights per step the two terms sum to d log Z for ANY K, and as
+# K grows the split converges to the structural Divisia integral. K=1 reduces to a
+# two-point (endpoint) LMDI; the K=1-vs-large gap measures path dependence (whether
+# the covariance genuinely evolves = real global nonlinearity vs. a base-weight artifact).
+logmean <- function(a, b) { out <- ifelse(a == b, a, (a - b) / (log(a) - log(b))); out[!is.finite(out)] <- 0; out }
+
+decompose_path <- function(p_target, sigma, rho, alpha, bundle, b, K = 24) {
+  em   <- which(bundle$e_bar > 0)                       # emitting firms (fixed set)
+  grid <- seq(0, p_target, length.out = K + 1L)
+  sols <- lapply(grid, function(pz) full_solve(pz, sigma, rho, alpha, bundle, b))
+  Zof  <- function(s) sum(s$z[em])
+  technique <- 0; reallocation <- 0
+  for (k in seq_len(K)) {
+    s0 <- sols[[k]]; s1 <- sols[[k + 1L]]
+    w  <- logmean(s1$z[em], s0$z[em]) / logmean(Zof(s1), Zof(s0))   # multiplicative LMDI
+    technique    <- technique    + sum(w * (log(s1$e[em]) - log(s0$e[em])))
+    reallocation <- reallocation + sum(w * (log(s1$x[em]) - log(s0$x[em])))
+  }
+  dlogZ <- log(Zof(sols[[K + 1L]])) - log(Zof(sols[[1L]]))
+  list(dlogZ = dlogZ, technique = technique, reallocation = reallocation,
+       residual = dlogZ - technique - reallocation, K = K)
+}
+
+# Efficient variant: solve ONCE along a fine grid (starting at 0) and report the
+# CUMULATIVE path decomposition at every grid node, so all price columns of a
+# counterfactual come from a single path of solves rather than re-integrating
+# 0->p for each column. Returns a data.frame (one row per grid price > 0).
+decompose_path_grid <- function(grid, sigma, rho, alpha, bundle, b) {
+  stopifnot(grid[1] == 0, all(diff(grid) > 0))
+  em   <- which(bundle$e_bar > 0)
+  sols <- lapply(grid, function(pz) full_solve(pz, sigma, rho, alpha, bundle, b))
+  Zof  <- function(s) sum(s$z[em]); Z0 <- Zof(sols[[1L]])
+  tech <- 0; real <- 0; rows <- vector("list", length(grid) - 1L)
+  for (k in seq_len(length(grid) - 1L)) {
+    s0 <- sols[[k]]; s1 <- sols[[k + 1L]]
+    w  <- logmean(s1$z[em], s0$z[em]) / logmean(Zof(s1), Zof(s0))
+    tech <- tech + sum(w * (log(s1$e[em]) - log(s0$e[em])))
+    real <- real + sum(w * (log(s1$x[em]) - log(s0$x[em])))
+    rows[[k]] <- data.frame(p_z = grid[k + 1L], dlogZ = log(Zof(s1)) - log(Z0),
+                            technique = tech, reallocation = real,
+                            mean_price = mean(s1$p))
+  }
+  do.call(rbind, rows)
+}
+
 # ---- alpha-inversion: calibrate alpha(sigma,rho) to a target emission change --
 # Finds alpha s.t.  log Z(p_hi) - log Z(p_lo) = target_dlogZ.
 # Framing is exposed via (p_lo, p_hi): e.g. 2005->2022 endpoints (18 -> 80), or

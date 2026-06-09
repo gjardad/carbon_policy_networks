@@ -40,6 +40,7 @@ ROBUST_FRAMINGS <- list(            # (p_lo, p_hi) variants for the alpha robust
   nopolicy_avg19  = c(0,  19)
 )
 PRICE_GRID <- c(80, 100, 150, 200, 250)     # counterfactual columns
+PATH_STEP  <- 10   # EUR/tCO2 step for the path-integral decomposition grid (0 -> max price)
 SCHEMES    <- c("T0")                        # add "T1" once industrial NACE confirmed
 FULL_GRID  <- FALSE   # FALSE: calibrate only the default (sigma,rho) cell + price sweep
                       #        (fast first run). TRUE: full sigma/rho sweep + robustness.
@@ -56,12 +57,8 @@ cat(sprintf("  %d firms, %d ETS, max rowsum=%.4f\n", bundle$meta$n, bundle$meta$
 source(file.path(CODE_DIR, "phase5_model_solver.R"))        # solver + calibrate_alpha (fns only)
 bshare <- base_final_shares(bundle)
 
-decomp <- function(base, cf) {                                 # scale/technique/reallocation
-  wz <- base$z / sum(base$z)
-  technique <- sum(wz * (log(cf$e + 1e-300) - log(base$e + 1e-300)))
-  dlogZ <- log(cf$Z) - log(base$Z)
-  c(dlogZ = dlogZ, technique = technique, quantity = dlogZ - technique)
-}
+# (technique/reallocation come from decompose_path_grid in phase5 — the BF
+#  path-integral decomposition; the old base-weight decomp() is retired.)
 
 # ---- timing probe: how long is one solve? (calibration does ~25-35 per cell) ----
 cat("\nTiming one full_solve ...\n"); .t0 <- Sys.time()
@@ -102,21 +99,23 @@ if (FULL_GRID) {
 }
 
 # ---- 3. Counterfactual matrix: scheme x price, at each calibrated cell ----
-cat("\nRunning counterfactual matrix ...\n")
+# Technique/reallocation split via the BF path-integral decomposition (exact,
+# residual-free; replaces the base-weight Laspeyres split). One fine grid of
+# solves 0 -> max(price) gives every price column at once (cumulative along path).
+cat("\nRunning counterfactual matrix (path-integral decomposition) ...\n")
+path_grid <- sort(unique(c(seq(0, max(PRICE_GRID), by = PATH_STEP), PRICE_GRID)))
 results <- list(); k <- 1
 for (i in seq_len(nrow(cal))) {
   s <- cal$sigma[i]; r <- cal$rho[i]; a <- cal$alpha[i]
   if (is.na(a)) next
-  base0 <- full_solve(0, s, r, a, bundle, bshare)            # no-policy reference
   for (sch in SCHEMES) {
-    tau_s <- get_tau(sch, bundle); bsch <- bundle; bsch$tau <- tau_s
-    for (pz in PRICE_GRID) {
-      cf <- full_solve(pz, s, r, a, bsch, bshare)
-      d  <- decomp(base0, cf)
-      results[[k]] <- data.frame(scheme = sch, p_z = pz, sigma = s, rho = r, alpha = a,
-                                 dlogZ = d["dlogZ"], technique = d["technique"], quantity = d["quantity"],
-                                 mean_price = mean(cf$p)); k <- k + 1
-    }
+    bsch <- bundle; bsch$tau <- get_tau(sch, bundle)
+    dec <- decompose_path_grid(path_grid, s, r, a, bsch, bshare)   # cumulative at each node
+    dec <- dec[dec$p_z %in% PRICE_GRID, ]                          # keep the requested columns
+    results[[k]] <- data.frame(scheme = sch, p_z = dec$p_z, sigma = s, rho = r, alpha = a,
+                               dlogZ = dec$dlogZ, technique = dec$technique,
+                               reallocation = dec$reallocation, mean_price = dec$mean_price)
+    k <- k + 1
   }
   gc()    # release sparse-LU memory between calibrated cells
 }
