@@ -95,7 +95,7 @@ reg_tex <- c(
 writeLines(reg_tex, file.path(output_dir, "tables", "centrality_regression.tex"))
 
 # ============================ 3. FIGURE ====================================
-fig_path <- file.path(output_dir, "figures", "centrality_plane.pdf")
+fig_path <- file.path(output_dir, "figures", "centrality_plane.png")   # PNG: paper figure convention
 ok_gg <- requireNamespace("ggplot2", quietly = TRUE)
 if (ok_gg) {
   library(ggplot2)
@@ -109,9 +109,9 @@ if (ok_gg) {
          y = "Composition (network reallocation), d log Z",
          title = "Two kinds of central firm") +
     theme_minimal(base_size = 12)
-  ggsave(fig_path, p, width = 6.5, height = 5)
+  ggsave(fig_path, p, width = 6.5, height = 5, dpi = 150)
 } else {
-  pdf(fig_path, width = 6.5, height = 5)
+  png(fig_path, width = 6.5, height = 5, units = "in", res = 150)
   plot(cf$technique, cf$composition, cex = 0.4 + 3 * cf$z / max(cf$z, na.rm = TRUE),
        col = ifelse(cf$industrial, "#D6604D", "#4393C3"),
        xlab = "Technique (own abatement)", ylab = "Composition (network reallocation)",
