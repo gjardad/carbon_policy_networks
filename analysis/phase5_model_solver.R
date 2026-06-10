@@ -106,9 +106,12 @@ solve_prices <- function(p_z, sigma, rho, alpha, bundle,
   list(p = r$x, kappa = ab$kappa, e = ab$e, iters = r$iters, delta = r$delta, converged = r$converged)
 }
 
-# ---- Final-demand shares b_i (Cobb-Douglas), calibrated from base sales -----
-# base sales s = revenue (bundle$x); intermediate sales of i = sum_j Omega_ji s_j
-# = (t(Omega) %*% s)_i; final demand_i = s_i - intermediate_i.
+# ---- Final-demand CES weights b_i, calibrated from base sales ---------------
+# Final demand is a CES(sigma) aggregator over firm outputs with weights b_i. At
+# base prices (p=1) the CES expenditure share on i equals b_i, so b_i is just the
+# base final-demand expenditure share. base sales s = revenue (bundle$x);
+# intermediate sales of i = sum_j Omega_ji s_j = (t(Omega) %*% s)_i;
+# final demand_i = s_i - intermediate_i.
 base_final_shares <- function(bundle) {
   s <- bundle$x; s[is.na(s)] <- 0
   inter <- as.numeric(Matrix::crossprod(bundle$Omega, s))   # t(Omega) %*% s
@@ -118,9 +121,13 @@ base_final_shares <- function(bundle) {
 
 # ---- Quantity / market-clearing block (Piece 2) ----------------------------
 # Given solved prices, compute nominal sales s, real output x, emissions Z.
-#   s = (I - M')^{-1} b E,  M_{ji} = phi_ji * c_input_j / p_j  (j's spend on i / revenue_j)
+#   s = (I - M')^{-1} f E,  M_{ji} = phi_ji * c_input_j / p_j  (j's spend on i / revenue_j)
 #   phi_ji = equilibrium expenditure share of j on input i (CES, CD-labor nest)
+#   f_i    = final-demand expenditure share, CES(sigma): f_i = b_i p_i^{1-sigma} / sum_k b_k p_k^{1-sigma}
 #   E pinned by labor market: L = sum_j gamma_j (c_input_j/p_j) s_j = 1
+# The SAME sigma governs intermediate substitution AND final demand, so the
+# reallocation (composition) channel scales to ~0 as sigma -> 0 (true Leontief
+# everywhere); at sigma=1 the CES form collapses to Cobb-Douglas (constant shares).
 solve_quantities <- function(sol, p_z, sigma, rho, bundle, b) {
   Omega <- bundle$Omega; gamma <- bundle$gamma; tau <- bundle$tau
   n <- length(gamma); p <- sol$p; e <- sol$e
@@ -131,24 +138,28 @@ solve_quantities <- function(sol, p_z, sigma, rho, bundle, b) {
 
   if (abs(sigma - 1) < 1e-8) {
     theta_norm <- theta                                  # CD: shares constant
+    fshare <- b                                          # final demand: constant shares
   } else {
     tw <- theta %*% Diagonal(x = p^(1 - sigma))          # scale col i by p_i^{1-sigma}
     rs <- rowSums(tw); rs[rs <= 0] <- 1
     theta_norm <- Diagonal(x = 1 / rs) %*% tw            # rows sum to 1
+    fw <- b * p^(1 - sigma); fshare <- fw / sum(fw)      # CES(sigma) final-demand shares
   }
   phi <- Diagonal(x = mat_share) %*% theta_norm          # row j sums to (1-gamma_j)
   M   <- Diagonal(x = c_input / p) %*% phi               # M_ji = phi_ji c_input_j/p_j
 
-  # s1 solves s = b + M' s (E=1). M' is sub-stochastic (contraction) -> iterate
+  # s1 solves s = f + M' s (E=1). M' is sub-stochastic (contraction) -> iterate
   # with Anderson instead of a direct sparse LU (matvecs scale better with n).
   Mt <- as(t(M), "CsparseMatrix")
-  s1 <- anderson_fp(function(s) b + as.numeric(Mt %*% s), b, tol = 1e-9)$x
+  s1 <- anderson_fp(function(s) fshare + as.numeric(Mt %*% s), fshare, tol = 1e-9)$x
   E  <- 1 / sum(gamma * (c_input / p) * s1)               # labor market, L=1
   s  <- E * s1
   x  <- s / p
   z  <- e * x
-  yfin <- b * E / p; ok <- b > 0                          # physical final demand
-  realY <- exp(sum(b[ok] * log(pmax(yfin[ok], 1e-300))))  # CD real consumption = welfare (real GDP)
+  yfin <- fshare * E / p                                  # physical final demand
+  # CES real consumption (welfare) = E / P, P the CES price index (CD limit at sigma=1).
+  logP <- if (abs(sigma - 1) < 1e-8) sum(b * log(p)) else log(sum(b * p^(1 - sigma))) / (1 - sigma)
+  realY <- E / exp(logP)
   list(s = s, x = x, z = z, Z = sum(z), E = E, realY = realY)
 }
 
