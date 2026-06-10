@@ -20,7 +20,7 @@ res <- bind_rows(lapply(SCHEMES, function(sch) tryCatch(run_scheme(sch), error =
   warning(sprintf("scheme %s skipped: %s", sch, conditionMessage(e))); NULL
 })))
 
-write.csv(res, file.path(out_data, "cf_results.csv"), row.names = FALSE)
+write.csv(res, file.path(output_dir, "cf_results.csv"), row.names = FALSE)
 cat(sprintf("\nDone. Wrote cf_results.csv (%d rows, schemes: %s) to %s\n",
-            nrow(res), paste(unique(res$scheme), collapse = ", "), out_data))
+            nrow(res), paste(unique(res$scheme), collapse = ", "), output_dir))
 print(res)

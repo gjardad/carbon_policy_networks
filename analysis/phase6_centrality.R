@@ -29,8 +29,8 @@ YEAR <- 2019; SCOPE <- "ets_neighbors"
 PZ <- 80; SIGMA <- 0.5; RHO <- 0.5; ALPHA <- 4      # benchmark parameters (Option B)
 CANDIDATE_N <- 1000                                  # rank the top-N emitters as candidates
 
-# assembled bundle (cached; shared with cf_common.R / the counterfactual runners)
-bundle_file <- file.path(out_data, sprintf("model_inputs_%d_%s.RData", YEAR, SCOPE))
+# assembled bundle (cached in output_dir, machine-split; shared with cf_common.R)
+bundle_file <- file.path(output_dir, sprintf("model_inputs_%d_%s.RData", YEAR, SCOPE))
 if (file.exists(bundle_file)) {
   cat("Loading cached bundle:", basename(bundle_file), "\n"); load(bundle_file)
 } else {
@@ -67,7 +67,7 @@ res <- lapply(seq_along(cand), function(k) {
              ets = bundle$tau[j], total = d["total"], technique = d["technique"],
              scale = d["scale"], composition = d["composition"], row.names = NULL)
 }) %>% bind_rows()
-write.csv(res, file.path(out_data, "cf_centrality.csv"), row.names = FALSE)
+write.csv(res, file.path(output_dir, "cf_centrality.csv"), row.names = FALSE)
 
 # ============================ characterization =============================
 jac <- function(a, b) length(intersect(a, b)) / length(union(a, b))
@@ -95,4 +95,4 @@ for (rankvar in c("total", "composition")) {
 cat("\n=== Q1: top 15 central firms (by total reduction) ===\n")
 top15 <- res[order(res$total), ][seq_len(15), c("nace2d","z","ets","total","technique","composition")]
 print(top15, row.names = FALSE)
-cat(sprintf("\nWrote cf_centrality.csv (%d firms) to %s\n", nrow(res), out_data))
+cat(sprintf("\nWrote cf_centrality.csv (%d firms) to %s\n", nrow(res), output_dir))

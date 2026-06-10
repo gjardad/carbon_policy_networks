@@ -28,8 +28,13 @@ PATH_STEP  <- 10                       # EUR/tCO2 path-integral step
 FULL_GRID  <- FALSE                    # FALSE: sweep sigma. TRUE: also sweep rho, alpha
 # ===========================================================================
 
+# Model outputs (cf_*.csv) and the bundle cache go to output_dir, which paths.R
+# splits by machine (output_rmd vs output_local) -- so an RMD run and a local run
+# never collide on the same git path. (out_data = data/processed is the SHARED
+# input dir; writing results there made RMD/local outputs clobber each other.)
+
 # ---- assembled bundle (cached; delete the file to force re-assembly) ----
-bundle_file <- file.path(out_data, sprintf("model_inputs_%d_%s.RData", YEAR, SCOPE))
+bundle_file <- file.path(output_dir, sprintf("model_inputs_%d_%s.RData", YEAR, SCOPE))
 if (file.exists(bundle_file)) {
   cat("Loading cached bundle:", basename(bundle_file), "\n"); load(bundle_file)
 } else {
@@ -53,7 +58,7 @@ path_grid <- sort(unique(c(seq(0, max(PRICE_GRID), by = PATH_STEP), PRICE_GRID))
 #   "centrality"           = most-central firms, emission coverage matched to ETS
 get_scheme_tau <- function(scheme) {
   if (scheme == "centrality") {                           # needs phase6_centrality.R output
-    f <- file.path(out_data, "cf_centrality.csv")
+    f <- file.path(output_dir, "cf_centrality.csv")
     if (!file.exists(f)) stop("cf_centrality.csv not found - run phase6_centrality.R first (for centrality)")
     cf <- read.csv(f); ord <- order(cf$total)             # most-reducing first
     nsel <- which(cumsum(cf$z[ord]) >= sum(cf$z[cf$ets == 1]))[1]

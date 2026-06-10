@@ -8,5 +8,5 @@
 source(.cc[file.exists(.cc)][1])
 
 res <- run_scheme("universal_industrial")
-write.csv(res, file.path(out_data, "cf_results_universal_industrial.csv"), row.names = FALSE)
-cat(sprintf("\nWrote cf_results_universal_industrial.csv to %s\n", out_data)); print(res)
+write.csv(res, file.path(output_dir, "cf_results_universal_industrial.csv"), row.names = FALSE)
+cat(sprintf("\nWrote cf_results_universal_industrial.csv to %s\n", output_dir)); print(res)
