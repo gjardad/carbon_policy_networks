@@ -117,14 +117,28 @@ get_tau <- function(scheme, bundle) {
 #   in_deg      # suppliers  (row nnz of Omega; row = buyer)
 #   out_deg     # customers  (col nnz of Omega; col = supplier)
 #   up1         one-layer upstream EI  = (Omega %*% E)_i        (= sum_j Omega_ij e_j)
-#   psi_e       network-adjusted EI    = (Psi %*% E)_i,  solve (I-Omega) psi_e = E
-#   downstream  Leontief influence     = sum_i Psi_ij,   solve (I-Omega^T) xi = 1
+#   psi_e       network-adjusted EI    = (Psi %*% E)_i,  fixed point v = E      + Omega   v
+#   downstream  Leontief influence     = sum_i Psi_ij,   fixed point xi = 1     + Omega^T xi
+#
+# psi_e / downstream are Leontief solves done by ITERATION (Neumann series), NOT a direct
+# sparse LU: the Leontief inverse is effectively dense, so factorizing (I-Omega) blows up
+# memory at scale. The materials cap (rowSums(Omega) <= 0.95) bounds the spectral radius
+# below 1, so v_{k+1} = b + Omega v_k converges geometrically -- a few hundred sparse
+# matvecs, sub-second. Same trick as solve_quantities in phase5_model_solver.R.
+.leontief_fp <- function(M, b, tol = 1e-10, maxit = 5000) {
+  v <- b
+  for (it in seq_len(maxit)) {
+    vn <- b + as.numeric(M %*% v)
+    if (max(abs(vn - v)) <= tol * (max(abs(vn)) + 1e-300)) return(vn)
+    v <- vn
+  }
+  warning("firm_network_stats: Leontief fixed point hit maxit (", maxit, ")"); v
+}
 firm_network_stats <- function(bundle) {
   Omega <- bundle$Omega; n <- nrow(Omega); e_bar <- bundle$e_bar
-  I_n <- Diagonal(n)
-  psi_e      <- as.numeric(Matrix::solve(I_n - Omega,    e_bar))      # Psi E
-  downstream <- as.numeric(Matrix::solve(I_n - t(Omega), rep(1, n)))  # col-sums of Psi
-  up1        <- as.numeric(Omega %*% e_bar)                           # Omega E (1 layer)
+  psi_e      <- .leontief_fp(Omega,    e_bar)          # Psi E
+  downstream <- .leontief_fp(t(Omega), rep(1, n))      # col-sums of Psi
+  up1        <- as.numeric(Omega %*% e_bar)            # Omega E (1 layer)
   nz     <- Omega@x != 0                                              # ignore structural zeros
   colidx <- rep(seq_len(n), diff(Omega@p))
   in_deg  <- tabulate((Omega@i[nz]) + 1L, n)                          # suppliers per buyer (row)
