@@ -120,32 +120,46 @@ if (ok_gg) {
   dev.off()
 }
 
-# ============================ 4. HORSE-RACE TABLE ==========================
-# If proxy_horserace.R has been run, render its csv as a paper table.
+# ============================ 4. HORSE-RACE TABLES =========================
+# If proxy_horserace.R has been run, render its csv(s) as paper tables.
+rule_lbl <- c(actual_ets = "Actual EU ETS", centrality = "Network centrality (model)",
+              emissions = "Direct emissions $z_i$", intensity = "Emission intensity $e_i$",
+              size = "Size $x_i$", domar = "Domar weight $\\lambda_i$",
+              upstream_psiE = "Network-adj. EI $(\\Psi E)_i$", upstream_1layer = "Upstream EI $(\\Omega E)_i$",
+              out_degree = "\\# customers", downstream = "Downstream influence")
+relabel <- function(r) ifelse(r %in% names(rule_lbl), rule_lbl[r], r)
+
+# Panel A: coverage-matched (firm count varies).
 hr_f <- file.path(output_dir, "cf_horserace.csv")
 if (file.exists(hr_f)) {
-  hr <- read.csv(hr_f)
-  lbl <- c(actual_ets = "Actual EU ETS", centrality = "Network centrality (model)",
-           emissions = "Direct emissions $z_i$", intensity = "Emission intensity $e_i$",
-           size = "Size $x_i$", domar = "Domar weight $\\lambda_i$",
-           upstream_psiE = "Network-adj. EI $(\\Psi E)_i$", upstream_1layer = "Upstream EI $(\\Omega E)_i$",
-           out_degree = "\\# customers", downstream = "Downstream influence")
-  hr <- hr[hr$rule != "domar", ]                 # Domar ranks identically to size; drop dup
-  hr$label <- ifelse(hr$rule %in% names(lbl), lbl[hr$rule], hr$rule)
-  hr <- hr[order(hr$dlogZ), ]
+  hr <- read.csv(hr_f); hr <- hr[hr$rule != "domar", ]
+  hr$label <- relabel(hr$rule); hr <- hr[order(hr$dlogZ), ]
   hr_tex <- c(
     "\\begin{tabular}{lrrr}", "\\toprule",
     "Targeting rule & \\# firms & $d\\log Z$ & \\% of gain \\\\", "\\midrule",
     sprintf("%s & %d & %.4f & %s \\\\", hr$label, hr$n_targeted, hr$dlogZ,
-            ifelse(is.finite(hr$pct_gain_captured),
-                   sprintf("%.0f", hr$pct_gain_captured), "--")),
+            ifelse(is.finite(hr$pct_gain_captured), sprintf("%.0f", hr$pct_gain_captured), "--")),
     "\\bottomrule", "\\end{tabular}")
   writeLines(hr_tex, file.path(output_dir, "tables", "centrality_horserace.tex"))
-  cat("\n=== Horse-race ===\n"); print(hr[, c("label","n_targeted","dlogZ","pct_gain_captured")],
-                                       row.names = FALSE, digits = 4)
-} else {
-  cat("\n(cf_horserace.csv not found - run proxy_horserace.R to add the horse-race table)\n")
-}
+  cat("\n=== Horse-race A (coverage-matched) ===\n")
+  print(hr[, c("label","n_targeted","dlogZ","pct_gain_captured")], row.names = FALSE, digits = 4)
+} else cat("\n(cf_horserace.csv not found - run proxy_horserace.R)\n")
+
+# Panel B: fixed firm count (pure selection quality, vs the network ranking).
+hrn_f <- file.path(output_dir, "cf_horserace_fixedn.csv")
+if (file.exists(hrn_f)) {
+  hb <- read.csv(hrn_f); hb <- hb[hb$rule != "domar", ]
+  hb$label <- relabel(hb$rule); hb <- hb[order(hb$dlogZ), ]
+  hb_tex <- c(
+    "\\begin{tabular}{lrr}", "\\toprule",
+    sprintf("Targeting rule (top %d firms) & $d\\log Z$ & \\%% of centrality \\\\", hb$n_targeted[1]),
+    "\\midrule",
+    sprintf("%s & %.4f & %.0f \\\\", hb$label, hb$dlogZ, hb$pct_of_centrality),
+    "\\bottomrule", "\\end{tabular}")
+  writeLines(hb_tex, file.path(output_dir, "tables", "centrality_horserace_fixedn.tex"))
+  cat("\n=== Horse-race B (fixed n) ===\n")
+  print(hb[, c("label","n_targeted","dlogZ","pct_of_centrality")], row.names = FALSE, digits = 4)
+} else cat("\n(cf_horserace_fixedn.csv not found - run the updated proxy_horserace.R)\n")
 
 # ============================ console summary ==============================
 cat("=== Descriptives (central top decile vs rest) ===\n"); print(desc, row.names = FALSE, digits = 3)

@@ -11,9 +11,16 @@
 #
 # Answers: does the network model earn its keep, or does ranking by a single
 # observable (emissions, intensity, upstream EI, degree, ...) already capture most
-# of the achievable reduction? One solve per rule -> ~9 solves; needs the cached
-# bundle (run phase6_centrality.R first so cf_centrality.csv exists for the
-# centrality benchmark). Writes output_dir/cf_horserace.csv.
+# of the achievable reduction?
+#
+# TWO panels:
+#   A. cf_horserace.csv         coverage-matched: each rule taxes down to the SAME
+#                               EMISSION coverage as the ETS (firm count varies by rule).
+#   B. cf_horserace_fixedn.csv  fixed firm count: each rule taxes the top-N firms, N =
+#                               size of the centrality set, so the administrative footprint
+#                               is held fixed -> pure selection quality (removes A's
+#                               coverage-vs-count confound). Benchmarked against centrality.
+# ~16 solves total; needs the cached bundle and cf_centrality.csv (run phase6_centrality.R).
 ###############################################################################
 .cc <- c("C:/Users/jardang/Documents/carbon_policy_networks/analysis/cf_common.R",
          "c:/Users/jota_/Documents/carbon_policy_networks/analysis/cf_common.R")
@@ -64,6 +71,32 @@ res$pct_gain_captured <- 100 * (res$dlogZ - ets_d) / (cen_d - ets_d)
 res <- res[order(res$dlogZ), ]
 
 write.csv(res, file.path(output_dir, "cf_horserace.csv"), row.names = FALSE)
-cat(sprintf("\nWrote cf_horserace.csv to %s  (p_z=%d, sigma=%.2f, rho=%.2f, alpha=%.0f)\n",
+cat(sprintf("\n[A] Wrote cf_horserace.csv to %s  (p_z=%d, sigma=%.2f, rho=%.2f, alpha=%.0f)\n",
             output_dir, PZ, DEF_SIGMA, DEF_RHO, DEF_ALPHA))
 print(res, row.names = FALSE, digits = 4)
+
+# ===========================================================================
+# Panel B: FIXED FIRM COUNT. Target the top-N firms by each rule, N = size of the
+# centrality set, so every rule taxes the same number of firms. Pure selection
+# quality at fixed footprint. pct_of_centrality = 100 * dlogZ / dlogZ_centrality
+# (>100 = beats the network ranking at equal firm count; <100 = worse).
+# ===========================================================================
+cen_tau <- get_scheme_tau("centrality"); N <- sum(cen_tau)
+cat(sprintf("\nFixed-n panel: top-%d firms by each rule ...\n", N))
+select_top_n <- function(val, N) em[order(val[em], decreasing = TRUE)][seq_len(min(N, length(em)))]
+
+rowsB <- list()
+for (nm in names(rules)) {
+  cat(sprintf("  rule %-16s ...\n", nm)); gc()
+  sel <- select_top_n(rules[[nm]], N)
+  rowsB[[nm]] <- data.frame(rule = nm, t(solve_set(seq_len(n_all) %in% sel)))
+}
+rowsB[["centrality"]] <- data.frame(rule = "centrality", t(solve_set(cen_tau)))
+resB <- do.call(rbind, rowsB); rownames(resB) <- NULL
+names(resB) <- c("rule", "n_targeted", "dlogZ", "technique", "scale", "composition")
+resB$pct_of_centrality <- 100 * resB$dlogZ / resB$dlogZ[resB$rule == "centrality"]
+resB <- resB[order(resB$dlogZ), ]
+
+write.csv(resB, file.path(output_dir, "cf_horserace_fixedn.csv"), row.names = FALSE)
+cat(sprintf("\n[B] Wrote cf_horserace_fixedn.csv to %s  (N=%d firms each)\n", output_dir, N))
+print(resB, row.names = FALSE, digits = 4)
