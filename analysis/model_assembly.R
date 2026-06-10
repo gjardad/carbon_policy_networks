@@ -106,3 +106,35 @@ get_tau <- function(scheme, bundle) {
   }
   stop(sprintf("scheme '%s' not handled by get_tau (centrality is built in cf_common.R)", scheme))
 }
+
+# Per-firm observables + network-position statistics, all derived from the bundle
+# (no extra data). Used to characterize centrality (phase6 / characterize_centrality.R)
+# and to rank firms in the proxy horse-race (proxy_horserace.R). Network objects use
+# SPARSE solves -- never form the dense Leontief inverse.
+#   e_bar       emission intensity (z / total_cost)            -- bundle$e_bar
+#   size        deflated revenue                               -- bundle$x
+#   domar       revenue-share Domar weight  lambda_i = x_i / sum_x
+#   in_deg      # suppliers  (row nnz of Omega; row = buyer)
+#   out_deg     # customers  (col nnz of Omega; col = supplier)
+#   up1         one-layer upstream EI  = (Omega %*% E)_i        (= sum_j Omega_ij e_j)
+#   psi_e       network-adjusted EI    = (Psi %*% E)_i,  solve (I-Omega) psi_e = E
+#   downstream  Leontief influence     = sum_i Psi_ij,   solve (I-Omega^T) xi = 1
+firm_network_stats <- function(bundle) {
+  Omega <- bundle$Omega; n <- nrow(Omega); e_bar <- bundle$e_bar
+  I_n <- Diagonal(n)
+  psi_e      <- as.numeric(Matrix::solve(I_n - Omega,    e_bar))      # Psi E
+  downstream <- as.numeric(Matrix::solve(I_n - t(Omega), rep(1, n)))  # col-sums of Psi
+  up1        <- as.numeric(Omega %*% e_bar)                           # Omega E (1 layer)
+  nz     <- Omega@x != 0                                              # ignore structural zeros
+  colidx <- rep(seq_len(n), diff(Omega@p))
+  in_deg  <- tabulate((Omega@i[nz]) + 1L, n)                          # suppliers per buyer (row)
+  out_deg <- tabulate(colidx[nz], n)                                  # customers per supplier (col)
+  size  <- bundle$x
+  domar <- size / sum(size, na.rm = TRUE)
+  fix <- function(v) { v[!is.finite(v)] <- 0; v }
+  data.frame(vat = bundle$firms, nace2d = bundle$nace2d, ets = bundle$tau,
+             z = bundle$z, e_bar = e_bar, size = size, total_cost = bundle$total_cost,
+             domar = domar, in_deg = in_deg, out_deg = out_deg,
+             up1 = fix(up1), psi_e = fix(psi_e), downstream = fix(downstream),
+             stringsAsFactors = FALSE, row.names = NULL)
+}

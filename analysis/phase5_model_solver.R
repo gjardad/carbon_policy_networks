@@ -172,6 +172,19 @@ full_solve <- function(p_z, sigma, rho, alpha, bundle, b) {
 # the covariance genuinely evolves = real global nonlinearity vs. a base-weight artifact).
 logmean <- function(a, b) { out <- ifelse(a == b, a, (a - b) / (log(a) - log(b))); out[!is.finite(out)] <- 0; out }
 
+# Two-point (K=1) LMDI decomposition of d log Z from base solve s0 -> shocked solve sj,
+# over emitters `em`. Returns c(total, technique, scale, composition). Same weights as
+# decompose_path_grid's per-step split, so a single step is exactly this. Reused by
+# phase6_centrality.R (per-firm marginals) and proxy_horserace.R (per-rule reductions).
+dec1 <- function(sj, s0, em) {
+  Z1 <- sum(sj$z[em]); Z0 <- sum(s0$z[em])
+  w  <- logmean(sj$z[em], s0$z[em]) / logmean(Z1, Z0)
+  tech  <- sum(w * (log(sj$e[em]) - log(s0$e[em])))
+  quant <- sum(w * (log(sj$x[em]) - log(s0$x[em])))
+  scale <- log(sum(sj$x)) - log(sum(s0$x))
+  c(total = log(Z1) - log(Z0), technique = tech, scale = scale, composition = quant - scale)
+}
+
 decompose_path <- function(p_target, sigma, rho, alpha, bundle, b, K = 24) {
   em   <- which(bundle$e_bar > 0)                       # emitting firms (fixed set)
   grid <- seq(0, p_target, length.out = K + 1L)

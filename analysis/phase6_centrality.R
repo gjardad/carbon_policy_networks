@@ -47,25 +47,23 @@ cand <- em[order(z0[em], decreasing = TRUE)][seq_len(min(CANDIDATE_N, length(em)
 cat(sprintf("Candidates: top %d emitters (of %d emitters, %d firms total)\n",
             length(cand), length(em), n))
 
-# 2-point decomposition of (base0 -> target-firm-j) into the three channels
-dec1 <- function(sj) {
-  Zj <- sum(sj$z[em])
-  w  <- logmean(sj$z[em], z0[em]) / logmean(Zj, Z0)
-  tech  <- sum(w * (log(sj$e[em]) - log(base0$e[em])))
-  quant <- sum(w * (log(sj$x[em]) - log(base0$x[em])))
-  scale <- log(sum(sj$x)) - log(Y0)
-  c(total = log(Zj) - log(Z0), technique = tech, scale = scale, composition = quant - scale)
-}
+# Per-firm observables + network-position covariates (firm_network_stats: model_assembly.R).
+# Attached to the candidate rows so cf_centrality.csv carries everything 4.2 needs.
+cat("Computing firm network statistics (sparse Leontief solves) ...\n")
+stats <- firm_network_stats(bundle)
+cov_cols <- c("e_bar", "size", "total_cost", "domar", "in_deg", "out_deg", "up1", "psi_e", "downstream")
 
+# dec1(sj, base0, em) is the shared two-point decomposition (phase5_model_solver.R).
 cat("Computing per-firm marginal targeting effects ...\n")
 res <- lapply(seq_along(cand), function(k) {
   j <- cand[k]
   bj <- bundle; bj$tau <- as.integer(seq_len(n) == j)        # target ONLY firm j
-  d  <- dec1(full_solve(PZ, SIGMA, RHO, ALPHA, bj, bshare))
+  d  <- dec1(full_solve(PZ, SIGMA, RHO, ALPHA, bj, bshare), base0, em)
   if (k %% 50 == 0) { cat(sprintf("  %d/%d\n", k, length(cand))); gc() }
-  data.frame(vat = bundle$firms[j], nace2d = bundle$nace2d[j], z = z0[j],
-             ets = bundle$tau[j], total = d["total"], technique = d["technique"],
-             scale = d["scale"], composition = d["composition"], row.names = NULL)
+  cbind(data.frame(vat = bundle$firms[j], nace2d = bundle$nace2d[j], z = z0[j],
+                   ets = bundle$tau[j], total = d["total"], technique = d["technique"],
+                   scale = d["scale"], composition = d["composition"], row.names = NULL),
+        stats[j, cov_cols, drop = FALSE])
 }) %>% bind_rows()
 write.csv(res, file.path(output_dir, "cf_centrality.csv"), row.names = FALSE)
 
