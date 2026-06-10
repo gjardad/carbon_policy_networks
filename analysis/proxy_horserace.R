@@ -40,8 +40,9 @@ solve_set <- function(tau) {
 }
 
 # observable ranking rules a regulator could actually implement
+# (Domar weight omitted: lambda_i proportional to size_i, so it ranks identically to size.)
 rules <- list(emissions = stats$z, intensity = stats$e_bar, size = stats$size,
-              domar = stats$domar, upstream_psiE = stats$psi_e, upstream_1layer = stats$up1,
+              upstream_psiE = stats$psi_e, upstream_1layer = stats$up1,
               out_degree = stats$out_deg, downstream = stats$downstream)
 
 rows <- list()

@@ -130,6 +130,7 @@ if (file.exists(hr_f)) {
            size = "Size $x_i$", domar = "Domar weight $\\lambda_i$",
            upstream_psiE = "Network-adj. EI $(\\Psi E)_i$", upstream_1layer = "Upstream EI $(\\Omega E)_i$",
            out_degree = "\\# customers", downstream = "Downstream influence")
+  hr <- hr[hr$rule != "domar", ]                 # Domar ranks identically to size; drop dup
   hr$label <- ifelse(hr$rule %in% names(lbl), lbl[hr$rule], hr$rule)
   hr <- hr[order(hr$dlogZ), ]
   hr_tex <- c(
