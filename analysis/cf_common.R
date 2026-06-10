@@ -19,7 +19,7 @@ source(file.path(CODE_DIR, "phase5_model_solver.R"))
 # ================================ CONFIG ===================================
 YEAR  <- 2019
 SCOPE <- "ets_neighbors"               # "ets_neighbors" (clean+tractable) | "full"
-SIGMA_GRID <- c(0.034, 0.5, 1, 4.7)    # swept (headline)
+SIGMA_GRID <- c(0.1, 0.5, 1, 4.7)      # swept (headline): Atalay 0.1, BF 0.5, CD 1, Peter-Ruane 4.7
 RHO_GRID   <- c(0.5, 0.75, 1)          # AIK realistic + full-passthrough
 ALPHA_GRID <- c(2, 4)                  # Martinsson all-firm / top-emitter
 DEF_SIGMA  <- 0.5; DEF_RHO <- 0.5; DEF_ALPHA <- 4   # external (Option B)
