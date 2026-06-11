@@ -18,6 +18,29 @@ When copying files from RMD to local 1: RMD → local 2 → cloud (Dropbox/Claud
 
 **EXCEPTION:** You MAY read code files from `inferring_emissions/` (including `analysis/`, `preprocess/`, `utils/`) or from `facts-emissions-across-network/` when the explicit purpose is to copy or directly adapt that code into this project. This exception exists because this project is meant to be standalone — all necessary code from either reference project should be copied here so that someone can reproduce results without needing those projects.
 
+## Paper / Writing — ALWAYS work in `paper/thesis/`
+
+**HARD RULE:** The live, compiled paper is the thesis build under `paper/thesis/`. **ALWAYS edit
+`paper/thesis/sections/*.tex`** — never `paper/sections/*.tex`, which is a stale parallel copy the
+compiled paper does not use. (`paper/thesis/main.tex` is the master; it `\input`s `thesis/sections/...`.)
+I once wrote an entire section into `paper/sections/quantitative.tex` by mistake; do not repeat it.
+
+When writing, **match the thesis's existing notation and conventions — the model is fully written in
+`paper/thesis/sections/model.tex`; read it before adding equations.** Specifically for this build:
+- No `cleveref`: use `\ref` with manual prefixes (`Table~\ref`, `Figure~\ref`, `Section~\ref`).
+- Custom macros: `\N=\mathcal{N}`, `\U=\mathcal{U}`. Sets: producers `\N`, inputs `\U`, consumption `\{C\}`.
+- Notation: input-output covariance operator `\mathbb{C}_{\Omega_{(i,:)}}`; network-adjusted EI `\Psi_e`;
+  baseline intensity vector `\overline{\mathcal{E}}` (firm `\overline{e}_i`); price response `\frac{d\log\mathbf{p}}{dp_z}`;
+  Leontief `\Psi=(I-\Omega)^{-1}`. The CES section label is `subsec: ces` (with a space).
+- Assets: tables in `paper/thesis/tables/`, figures in `paper/thesis/figures/` (PNG, not PDF — `*.pdf`
+  is gitignored), bibliography `paper/thesis/sections/refs.bib`.
+- Compile-test with a minimal standalone wrapper (define `\N`,`\U`; load amsmath/amssymb/natbib/booktabs/multirow);
+  check for `! ` errors and Overfull \hbox > ~3pt.
+
+The paper is a git submodule (`paper/`, repo `carbon_policy_in_networks_paper`, synced to Overleaf):
+commit inside `paper/`, `git pull --rebase origin main`, push; then in the superrepo `git add paper`
+to bump the pointer. End commit messages with the Co-Authored-By line.
+
 ## Workflow Orchestration
 
 ### 1. Plan Node Default
