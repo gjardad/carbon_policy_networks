@@ -60,7 +60,7 @@ t3 <- c("\\begin{tabular}{lrr}", "\\toprule",
         "Scheme & $\\Delta\\log Z$ & vs ETS \\\\", "\\midrule",
         sprintf("EU ETS & %s & --- \\\\", f3(ets)),
         sprintf("Universal industrial & %s & %s\\%% \\\\", f3(uni), pct(uni, ets)),
-        sprintf("Centrality (coverage-matched) & %s & %s\\%% \\\\", f3(cen), pct(cen, ets)),
+        sprintf("Centrality (count-matched) & %s & %s\\%% \\\\", f3(cen), pct(cen, ets)),
         "\\bottomrule", "\\end{tabular}")
 writeLines(t3, file.path(tab_dir, "cf_schemes_compare.tex"))
 

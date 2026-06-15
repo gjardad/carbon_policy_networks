@@ -19,6 +19,8 @@ source(file.path(CODE_DIR, "phase5_model_solver.R"))
 # ================================ CONFIG ===================================
 YEAR  <- 2019
 SCOPE <- "ets_neighbors"               # "ets_neighbors" (clean+tractable) | "full"
+NEST_LEVEL <- "nace4d"                 # inner-CES nest granularity ("narrowly-defined sector",
+                                       # the level sigma_W is estimated at); "nace2d" = coarser
 # Nested-CES baseline calibration (quantitative.tex 5.2): sigma_B between sectors
 # (Atalay, near-Leontief across-sector), sigma_W within sector across suppliers
 # (Peter-Ruane, long-run point est), alpha (Martinsson all-firm), rho (Ganapati
@@ -49,7 +51,7 @@ if (file.exists(bundle_file)) {
   cat("Assembling bundle (first run; cached for reuse) ...\n")
   bundle <- assemble_bundle(YEAR, SCOPE, proc_data, out_data); save(bundle, file = bundle_file)
 }
-bundle <- build_nest(bundle)            # nested-CES precompute (not persisted in the cache)
+bundle <- build_nest(bundle, NEST_LEVEL)   # nested-CES precompute (not persisted in the cache)
 bshare <- base_final_shares(bundle)
 cat(sprintf("  %d firms, %d ETS, max rowsum=%.4f\n",
             bundle$meta$n, bundle$meta$n_ets, bundle$meta$max_rowsum))
@@ -65,14 +67,19 @@ path_grid <- sort(unique(c(seq(0, max(PRICE_GRID), by = PATH_STEP), PRICE_GRID))
 # ---- targeting vector for a scheme ----
 #   "actual_ets"           = the realized EU ETS installations (benchmark)
 #   "universal_industrial" = every industrial emitter (NACE 05-09, 10-33, 35)
-#   "centrality"           = most-central firms, emission coverage matched to ETS
+#   "centrality"           = the most-central firms, COUNT-matched to the ETS (same number
+#                            of firms taxed). Coverage-matching was abandoned: with the
+#                            nested calibration, centrality is anti-correlated with own
+#                            emissions, so matching direct-emission coverage drags in large
+#                            low-intensity emitters the ranking wants to skip and balloons
+#                            the set past the candidate pool. Count-matching gives the clean
+#                            "same number of firms, better targets" comparison.
 get_scheme_tau <- function(scheme) {
   if (scheme == "centrality") {                           # needs phase6_centrality.R output
     f <- file.path(output_dir, "cf_centrality.csv")
     if (!file.exists(f)) stop("cf_centrality.csv not found - run phase6_centrality.R first (for centrality)")
     cf <- read.csv(f); ord <- order(cf$total)             # most-reducing first
-    nsel <- which(cumsum(cf$z[ord]) >= sum(cf$z[cf$ets == 1]))[1]
-    if (is.na(nsel)) nsel <- length(ord)
+    nsel <- min(sum(bundle$tau), nrow(cf))                # count-match: same # firms as the ETS
     return(as.integer(bundle$firms %in% cf$vat[ord][seq_len(nsel)]))
   }
   get_tau(scheme, bundle)                                 # actual_ets, universal_industrial

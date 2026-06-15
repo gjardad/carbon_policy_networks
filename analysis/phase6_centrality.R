@@ -37,7 +37,7 @@ if (file.exists(bundle_file)) {
   cat("Assembling bundle (first run; cached for reuse) ...\n")
   bundle <- assemble_bundle(YEAR, SCOPE, proc_data, out_data); save(bundle, file = bundle_file)
 }
-bundle <- build_nest(bundle)            # nested-CES precompute (not persisted in the cache)
+bundle <- build_nest(bundle, "nace4d")  # nested-CES precompute (inner nest = narrow sector)
 bshare <- base_final_shares(bundle)
 em <- which(bundle$e_bar > 0)
 n  <- length(bundle$gamma)

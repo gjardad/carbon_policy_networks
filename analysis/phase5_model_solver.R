@@ -36,63 +36,85 @@ load_bundle <- function(year = 2019) {
 }
 
 # ---- nested-CES precompute (one-time per bundle) ----------------------------
-# Sector grouping from supplier NACE-2d (missing nace2d -> a single "__NA__"
-# bucket, so those few suppliers substitute among themselves at sigma_W; this is
-# a bounded approximation, flagged here). Builds the membership matrix Sg (firm
-# as supplier x sector), the base sector-expenditure shares Lambda (n x G), and a
-# per-nonzero column index, all invariant across solves. Attached as bundle$nest;
-# callers should run `bundle <- build_nest(bundle)` ONCE after assembly so the
-# path-integral re-solves reuse it (it is invariant to tau / p_z).
-build_nest <- function(bundle) {
-  Om   <- as(bundle$Omega, "CsparseMatrix"); n <- nrow(Om)
-  nace <- bundle$nace2d
-  sec  <- ifelse(is.na(nace), "__NA__", nace)
-  lev  <- sort(unique(sec)); grp <- match(sec, lev); G <- length(lev)
-  Sg   <- sparseMatrix(i = seq_len(n), j = grp, x = 1, dims = c(n, G))  # firm(supplier) -> sector
-  Lambda <- as.matrix(Om %*% Sg)               # Lambda_ig = sum_{j in g} Omega_ij  (n x G)
-  cidx <- rep(seq_len(n), diff(Om@p))           # supplier (column) index per nonzero of Om
-  bundle$nest <- list(Omega = Om, Sg = Sg, grp = grp, Lambda = Lambda,
-                      Lpos = Lambda > 0, cidx = cidx, gamma = bundle$gamma, G = G, levels = lev)
+# Sector grouping from supplier NACE (default NACE-4d = "narrowly-defined sector",
+# the level at which sigma_W is estimated; falls back to nace2d if 4d absent).
+# Suppliers with a missing code become their OWN singleton sector, so they carry no
+# within-sector substitution and sit directly in the outer (sigma_B) nest.
+#
+# FULLY SPARSE: builds the membership matrix Sg (firm-as-supplier x sector) and the
+# base sector-expenditure shares Lambda = Om %*% Sg as a SPARSE dgCMatrix (NOT a
+# dense n x G, which blows up at 4d granularity). Lambda's nonzero pattern is the
+# set of (buyer i, supplier-sector g) pairs that actually trade; every per-call
+# sector quantity (Gmat, the sector price index, shares) lives on this SAME pattern,
+# so we just swap @x and use sparse rowSums. `pos` maps each nonzero of Om to its
+# (i, g(j)) slot in Lambda@x, so within-sector supplier shares need no dense lookup.
+# Attached as bundle$nest; run `bundle <- build_nest(bundle)` ONCE after assembly.
+build_nest <- function(bundle, level = c("nace4d", "nace2d")) {
+  Om <- as(bundle$Omega, "CsparseMatrix"); n <- nrow(Om)
+  level <- match.arg(level)
+  nace  <- bundle[[level]]; if (is.null(nace)) nace <- bundle$nace2d
+  isna  <- is.na(nace)
+  sec   <- as.character(nace); sec[isna] <- paste0("__NA__", which(isna))   # NA -> singletons
+  lev   <- unique(sec); grp <- match(sec, lev); G <- length(lev)
+  Sg     <- sparseMatrix(i = seq_len(n), j = grp, x = 1, dims = c(n, G))    # supplier -> sector
+  Lambda <- as(Om %*% Sg, "CsparseMatrix")                                  # SPARSE Lambda_ig
+  cidx   <- rep(seq_len(n), diff(Om@p))                                     # supplier col per Om nnz
+  ridxOm <- Om@i + 1L                                                       # buyer row per Om nnz
+  Lrow   <- Lambda@i + 1L; Lcol <- rep(seq_len(G), diff(Lambda@p))          # Lambda triplets (@x order)
+  keyL   <- Lrow + (Lcol - 1) * as.double(n)                               # double keys (avoid int overflow)
+  keyOm  <- ridxOm + (grp[cidx] - 1) * as.double(n)
+  pos    <- match(keyOm, keyL)                          # Om nnz -> index into Lambda@x / Gx / Fx
+  bundle$nest <- list(Omega = Om, Sg = Sg, grp = grp, Lambda = Lambda, Lx = Lambda@x,
+                      cidx = cidx, ridxOm = ridxOm, pos = pos, gamma = bundle$gamma,
+                      n = n, G = G, level = level, levels = lev)
   bundle
 }
 
-# ---- nested-CES input cost c_i(p) (and, optionally, expenditure shares) ------
-# Returns c_input (vector) and, when want_shares, the outer sector shares secshare
-# (n x G), the labor share labshare (n), and the inner pieces q / Gmat needed to
-# rebuild within-sector supplier shares. Handles the Cobb-Douglas limits
-# (|sigma-1|<eps) of each nest via logs.
+# ---- nested-CES input cost c_i(p) (and, optionally, expenditure-share pieces) -
+# All sector objects live on Lambda's sparse pattern (vectors aligned with
+# Lambda@x); c_input via sparse rowSums. Handles the Cobb-Douglas limits
+# (|sigma-1|<eps) of each nest via logs. When want_shares, returns Fx (the
+# secshare-numerator/Gmat ratio on Lambda's pattern), q, c_pow and labshare; the
+# caller multiplies in 1/c_pow per buyer row (non-CD outer) when building phi.
 .nest_cost <- function(p, nest, sB, sW, want_shares = FALSE) {
-  Om <- nest$Omega; Sg <- nest$Sg; Lambda <- nest$Lambda; Lpos <- nest$Lpos
+  Om <- nest$Omega; Sg <- nest$Sg; Lambda <- nest$Lambda; Lx <- nest$Lx
   gamma <- nest$gamma; cidx <- nest$cidx
   cdW <- abs(sW - 1) < 1e-8; cdB <- abs(sB - 1) < 1e-8
+  posL <- Lx > 0
+  nz <- length(Lx)
 
-  # inner: sector log price index logP (n x G); also q, Gmat for shares
+  # inner: sector log price index logPx and Gx (= Gmat@x), on Lambda's pattern
   if (cdW) {
     OmL <- Om; OmL@x <- Om@x * log(p)[cidx]
-    LG  <- as.matrix(OmL %*% Sg)                       # sum_{j in g} Omega_ij log p_j
-    logP <- matrix(0, nrow(Lambda), ncol(Lambda)); logP[Lpos] <- LG[Lpos] / Lambda[Lpos]
-    q <- rep(1, length(p)); Gmat <- Lambda             # q = p^0 = 1  => Gmat = Lambda
+    LGx <- (OmL %*% Sg)@x                               # aligned with Lambda@x
+    Gx  <- Lx                                           # q = p^0 = 1 => Gmat = Lambda
+    logPx <- numeric(nz); logPx[posL] <- LGx[posL] / Lx[posL]
+    q <- rep(1, length(p))
   } else {
-    q <- p^(1 - sW)
-    Omq <- Om; Omq@x <- Om@x * q[cidx]
-    Gmat <- as.matrix(Omq %*% Sg)                      # sum_{j in g} Omega_ij p_j^{1-sW}
-    logP <- matrix(0, nrow(Lambda), ncol(Lambda))
-    logP[Lpos] <- log(Gmat[Lpos] / Lambda[Lpos]) / (1 - sW)
+    q <- p^(1 - sW); Omq <- Om; Omq@x <- Om@x * q[cidx]
+    Gx <- (Omq %*% Sg)@x
+    logPx <- numeric(nz); logPx[posL] <- log(Gx[posL] / Lx[posL]) / (1 - sW)
   }
 
-  # outer: combine sector bundles + labor (w=1)
+  # outer: combine sector bundles + labor (w=1); c_input via sparse rowSums
   if (cdB) {
-    c_input  <- exp(rowSums(Lambda * logP))            # gamma_i * log(w=1) = 0
-    secshare <- if (want_shares) Lambda else NULL       # CD: constant outer shares
-    labshare <- if (want_shares) gamma  else NULL
+    Term <- Lambda; Term@x <- Lx * logPx                 # gamma_i * log(w=1) = 0
+    c_input <- exp(as.numeric(Matrix::rowSums(Term)))
+    c_pow <- NULL; numerx <- Lx                          # CD: sector cost share = Lambda_ig
   } else {
-    w_ig    <- Lambda * exp((1 - sB) * logP)           # Lambda_ig P_ig^{1-sB}
-    c_pow   <- rowSums(w_ig) + gamma                    # c_input^{1-sB}
-    c_input <- c_pow^(1 / (1 - sB))
-    secshare <- if (want_shares) w_ig / c_pow else NULL
-    labshare <- if (want_shares) gamma / c_pow else NULL
+    termx <- Lx * exp((1 - sB) * logPx)                  # Lambda_ig P_ig^{1-sB}
+    Term <- Lambda; Term@x <- termx
+    c_pow <- as.numeric(Matrix::rowSums(Term)) + gamma   # c_input^{1-sB}
+    c_input <- c_pow^(1 / (1 - sB)); numerx <- termx
   }
-  list(c_input = c_input, secshare = secshare, labshare = labshare, q = q, Gmat = Gmat)
+
+  out <- list(c_input = c_input, q = q, c_pow = c_pow, cdB = cdB)
+  if (want_shares) {
+    Fx <- numerx / Gx; Fx[!is.finite(Fx)] <- 0          # secshare-numer / Gmat (per Lambda nnz)
+    out$Fx <- Fx
+    out$labshare <- if (cdB) gamma else gamma / c_pow
+  }
+  out
 }
 
 # ---- Abatement block: closed form (alpha > 1) ------------------------------ (UNCHANGED)
@@ -211,11 +233,13 @@ solve_quantities <- function(sol, p_z, sigma_B, sigma_W, rho, bundle, b) {
   nc <- .nest_cost(p, nest, sigma_B, sigma_W, want_shares = TRUE)
   c_input <- nc$c_input
 
-  # equilibrium expenditure-share matrix phi (row i = buyer, col j = supplier)
-  ridx <- Om@i + 1L; cidx <- nest$cidx; gj <- nest$grp[cidx]
-  F <- nc$secshare / nc$Gmat; F[!nest$Lpos] <- 0           # secshare_ig / Gmat_ig (n x G)
-  fac <- F[cbind(ridx, gj)] * nc$q[cidx]
-  phi <- sparseMatrix(i = ridx, j = cidx, x = Om@x * fac, dims = c(n, n))
+  # equilibrium expenditure-share matrix phi (row i = buyer, col j = supplier):
+  #   phi_ij = secshare_{i,g(j)} * (Omega_ij p_j^{1-sW} / Gmat_{i,g(j)})
+  # built per nonzero of Om: Fx[pos] picks the (i,g(j)) sector factor, q the price
+  # factor; 1/c_pow per buyer row turns the secshare-numerator into a share (non-CD).
+  phix <- Om@x * nc$Fx[nest$pos] * nc$q[nest$cidx]
+  if (!nc$cdB) phix <- phix / nc$c_pow[nest$ridxOm]
+  phi <- sparseMatrix(i = nest$ridxOm, j = nest$cidx, x = phix, dims = c(n, n))
 
   M  <- Diagonal(x = c_input / p) %*% phi                  # M_ji = phi_ji c_input_j/p_j
   fd <- .final_demand(p, b, nest, sigma_B, sigma_W)

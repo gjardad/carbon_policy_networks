@@ -87,6 +87,7 @@ assemble_bundle <- function(yr, scope, proc, out) {
            real_revenue = ifelse(!is.na(ppi) & ppi > 0, revenue / ppi * 100, revenue))
   x <- setNames(rep(NA_real_, n), subset_vat); x[rev_tab$vat] <- rev_tab$real_revenue
   nace2d <- setNames(rep(NA_character_, n), subset_vat); nace2d[rev_tab$vat] <- rev_tab$nace2d
+  nace4d <- setNames(rep(NA_character_, n), subset_vat); nace4d[rev_tab$vat] <- rev_tab$nace4d
 
   tau <- as.integer(subset_vat %in% ets_vat)
   message("  [assemble] done.")
@@ -94,7 +95,7 @@ assemble_bundle <- function(yr, scope, proc, out) {
   list(meta = list(year = yr, scope = scope, n = n, n_ets = sum(tau),
                    max_rowsum = max(rowSums(Omega), na.rm = TRUE)),
        firms = subset_vat, Omega = Omega, e_bar = e_bar, gamma = gamma,
-       tau = tau, x = x, z = z, total_cost = total_cost, nace2d = nace2d)
+       tau = tau, x = x, z = z, total_cost = total_cost, nace2d = nace2d, nace4d = nace4d)
 }
 
 # Targeting vector tau for a given scheme.
