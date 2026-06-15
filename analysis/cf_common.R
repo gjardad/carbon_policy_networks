@@ -19,7 +19,7 @@ source(file.path(CODE_DIR, "phase5_model_solver.R"))
 # ================================ CONFIG ===================================
 YEAR  <- 2019
 SCOPE <- "ets_neighbors"               # "ets_neighbors" (clean+tractable) | "full"
-SIGMA_GRID <- c(0.1, 0.55, 1, 3.4)     # swept (headline): Atalay 0.1 (across-sector, SR); Fujiy-Ghose-Khanna 0.55 (across-supplier, SR); CD 1; Peter-Ruane CI-upper / Huneeus 3.4 (across-supplier, LR). Source-verified June 2026 (old BF-0.5 & P&R-4.7 were misattributed).
+SIGMA_GRID <- c(0.1, 0.55, 1, 2.5, 3.4)  # swept (headline): sigma_B 0.1 (Atalay, across-sector SR); sigma_W = Fujiy-Ghose-Khanna 0.55 (across-supplier SR), CD 1, Peter-Ruane 2.5 (point est, LR), Huneeus 3.4 (across-supplier LR). Source-verified June 2026 (old BF-0.5 & P&R-4.7 were misattributed).
 RHO_GRID   <- c(0.5, 0.7, 1)           # Amiti et al. large-firm 0.5; Ganapati et al. energy-cost 0.7; Fabra-Reguant common-shock / full 1 (PASS_THROUGH_LIT.md §6)
 ALPHA_GRID <- c(2, 4)                  # Martinsson all-firm / top-emitter
 DEF_SIGMA  <- 0.55; DEF_RHO <- 0.5; DEF_ALPHA <- 4   # external (Option B)
