@@ -24,9 +24,9 @@ source(.cand[file.exists(.cand)][1]); CODE_DIR <- file.path(project_root, "analy
 source(file.path(CODE_DIR, "model_assembly.R"))
 source(file.path(CODE_DIR, "phase5_model_solver.R"))
 
-# ---- config ----
+# ---- config (nested-CES baseline, quantitative.tex 5.2) ----
 YEAR <- 2019; SCOPE <- "ets_neighbors"
-PZ <- 80; SIGMA <- 0.5; RHO <- 0.5; ALPHA <- 4      # benchmark parameters (Option B)
+PZ <- 80; SIGMA_B <- 0.1; SIGMA_W <- 2.5; RHO <- 0.7; ALPHA <- 2   # baseline parameters
 CANDIDATE_N <- 1000                                  # rank the top-N emitters as candidates
 
 # assembled bundle (cached in output_dir, machine-split; shared with cf_common.R)
@@ -37,11 +37,12 @@ if (file.exists(bundle_file)) {
   cat("Assembling bundle (first run; cached for reuse) ...\n")
   bundle <- assemble_bundle(YEAR, SCOPE, proc_data, out_data); save(bundle, file = bundle_file)
 }
+bundle <- build_nest(bundle)            # nested-CES precompute (not persisted in the cache)
 bshare <- base_final_shares(bundle)
 em <- which(bundle$e_bar > 0)
 n  <- length(bundle$gamma)
 
-base0 <- full_solve(0, SIGMA, RHO, ALPHA, bundle, bshare)   # no-policy reference
+base0 <- full_solve(0, SIGMA_B, SIGMA_W, RHO, ALPHA, bundle, bshare)   # no-policy reference
 z0 <- base0$z; Z0 <- sum(z0[em]); Y0 <- sum(base0$x)
 cand <- em[order(z0[em], decreasing = TRUE)][seq_len(min(CANDIDATE_N, length(em)))]
 cat(sprintf("Candidates: top %d emitters (of %d emitters, %d firms total)\n",
@@ -58,7 +59,7 @@ cat("Computing per-firm marginal targeting effects ...\n")
 res <- lapply(seq_along(cand), function(k) {
   j <- cand[k]
   bj <- bundle; bj$tau <- as.integer(seq_len(n) == j)        # target ONLY firm j
-  d  <- dec1(full_solve(PZ, SIGMA, RHO, ALPHA, bj, bshare), base0, em)
+  d  <- dec1(full_solve(PZ, SIGMA_B, SIGMA_W, RHO, ALPHA, bj, bshare), base0, em)
   if (k %% 50 == 0) { cat(sprintf("  %d/%d\n", k, length(cand))); gc() }
   cbind(data.frame(vat = bundle$firms[j], nace2d = bundle$nace2d[j], z = z0[j],
                    ets = bundle$tau[j], total = d["total"], technique = d["technique"],

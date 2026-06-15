@@ -19,13 +19,21 @@ source(file.path(CODE_DIR, "phase5_model_solver.R"))
 # ================================ CONFIG ===================================
 YEAR  <- 2019
 SCOPE <- "ets_neighbors"               # "ets_neighbors" (clean+tractable) | "full"
-SIGMA_GRID <- c(0.1, 0.55, 1, 2.5, 3.4)  # swept (headline): sigma_B 0.1 (Atalay, across-sector SR); sigma_W = Fujiy-Ghose-Khanna 0.55 (across-supplier SR), CD 1, Peter-Ruane 2.5 (point est, LR), Huneeus 3.4 (across-supplier LR). Source-verified June 2026 (old BF-0.5 & P&R-4.7 were misattributed).
-RHO_GRID   <- c(0.5, 0.7, 1)           # Amiti et al. large-firm 0.5; Ganapati et al. energy-cost 0.7; Fabra-Reguant common-shock / full 1 (PASS_THROUGH_LIT.md §6)
+# Nested-CES baseline calibration (quantitative.tex 5.2): sigma_B between sectors
+# (Atalay, near-Leontief across-sector), sigma_W within sector across suppliers
+# (Peter-Ruane, long-run point est), alpha (Martinsson all-firm), rho (Ganapati
+# energy-cost pass-through). Headline is the SINGLE baseline cell; robustness
+# grids (FULL_GRID) hold sigma_B fixed and sweep sigma_W / rho / alpha.
+SIGMA_B <- 0.1                          # between-sector elasticity (fixed)
+SIGMA_W <- 2.5                          # within-sector elasticity (baseline)
+DEF_RHO <- 0.7                          # pass-through (baseline)
+DEF_ALPHA <- 2                          # abatement elasticity (baseline)
+SIGMA_W_GRID <- c(0.55, 1, 2.5, 3.4)   # Fujiy 0.55 (SR), CD 1, Peter 2.5 (LR), Huneeus 3.4 (LR)
+RHO_GRID   <- c(0.5, 0.7, 1)           # Amiti large-firm; Ganapati energy-cost; full (PASS_THROUGH_LIT.md §6)
 ALPHA_GRID <- c(2, 4)                  # Martinsson all-firm / top-emitter
-DEF_SIGMA  <- 0.55; DEF_RHO <- 0.5; DEF_ALPHA <- 4   # external (Option B)
 PRICE_GRID <- c(80, 100, 150, 200, 250)            # benchmark 80; rest counterfactual
 PATH_STEP  <- 10                       # EUR/tCO2 path-integral step
-FULL_GRID  <- FALSE                    # FALSE: sweep sigma. TRUE: also sweep rho, alpha
+FULL_GRID  <- FALSE                    # FALSE: single baseline cell. TRUE: sweep sigma_W, rho, alpha
 # ===========================================================================
 
 # Model outputs (cf_*.csv) and the bundle cache go to output_dir, which paths.R
@@ -41,15 +49,17 @@ if (file.exists(bundle_file)) {
   cat("Assembling bundle (first run; cached for reuse) ...\n")
   bundle <- assemble_bundle(YEAR, SCOPE, proc_data, out_data); save(bundle, file = bundle_file)
 }
+bundle <- build_nest(bundle)            # nested-CES precompute (not persisted in the cache)
 bshare <- base_final_shares(bundle)
 cat(sprintf("  %d firms, %d ETS, max rowsum=%.4f\n",
             bundle$meta$n, bundle$meta$n_ets, bundle$meta$max_rowsum))
 
-# ---- parameter cells (sweep sigma; alpha, rho external) ----
-cells <- data.frame(sigma = SIGMA_GRID, rho = DEF_RHO, alpha = DEF_ALPHA)
+# ---- parameter cells (single baseline; FULL_GRID adds robustness sweeps) ----
+cells <- data.frame(sigma_B = SIGMA_B, sigma_W = SIGMA_W, rho = DEF_RHO, alpha = DEF_ALPHA)
 if (FULL_GRID) cells <- unique(rbind(cells,
-  data.frame(sigma = DEF_SIGMA, rho = RHO_GRID, alpha = DEF_ALPHA),
-  data.frame(sigma = DEF_SIGMA, rho = DEF_RHO,  alpha = ALPHA_GRID)))
+  data.frame(sigma_B = SIGMA_B, sigma_W = SIGMA_W_GRID, rho = DEF_RHO,  alpha = DEF_ALPHA),
+  data.frame(sigma_B = SIGMA_B, sigma_W = SIGMA_W,      rho = RHO_GRID, alpha = DEF_ALPHA),
+  data.frame(sigma_B = SIGMA_B, sigma_W = SIGMA_W,      rho = DEF_RHO,  alpha = ALPHA_GRID)))
 path_grid <- sort(unique(c(seq(0, max(PRICE_GRID), by = PATH_STEP), PRICE_GRID)))
 
 # ---- targeting vector for a scheme ----
@@ -75,15 +85,16 @@ run_scheme <- function(scheme) {
               scheme, sum(tau), nrow(cells)))
   out <- vector("list", nrow(cells))
   for (i in seq_len(nrow(cells))) {
-    s <- cells$sigma[i]; r <- cells$rho[i]; a <- cells$alpha[i]
-    cat(sprintf("  cell %d/%d: sigma=%.3f rho=%.2f alpha=%.2f ...\n", i, nrow(cells), s, r, a))
+    sB <- cells$sigma_B[i]; sW <- cells$sigma_W[i]; r <- cells$rho[i]; a <- cells$alpha[i]
+    cat(sprintf("  cell %d/%d: sigma_B=%.3f sigma_W=%.3f rho=%.2f alpha=%.2f ...\n",
+                i, nrow(cells), sB, sW, r, a))
     bsch <- bundle; bsch$tau <- tau
-    dec <- decompose_path_grid(path_grid, s, r, a, bsch, bshare)
+    dec <- decompose_path_grid(path_grid, sB, sW, r, a, bsch, bshare)
     dec <- dec[dec$p_z %in% PRICE_GRID, ]
-    out[[i]] <- data.frame(scheme = scheme, p_z = dec$p_z, sigma = s, rho = r, alpha = a,
-                           dlogZ = dec$dlogZ, scale = dec$scale, technique = dec$technique,
-                           composition = dec$composition, realGDP = dec$realGDP,
-                           mean_price = dec$mean_price)
+    out[[i]] <- data.frame(scheme = scheme, p_z = dec$p_z, sigma_B = sB, sigma_W = sW,
+                           rho = r, alpha = a, dlogZ = dec$dlogZ, scale = dec$scale,
+                           technique = dec$technique, composition = dec$composition,
+                           realGDP = dec$realGDP, mean_price = dec$mean_price)
     gc()
   }
   bind_rows(out)

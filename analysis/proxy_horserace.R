@@ -29,7 +29,7 @@ source(.cc[file.exists(.cc)][1])              # cached bundle, solver, get_schem
 PZ <- 80                                       # benchmark price (realized 2022)
 stats <- firm_network_stats(bundle)
 em    <- which(bundle$e_bar > 0)               # emitters: the rule-rankable pool
-base0 <- full_solve(0, DEF_SIGMA, DEF_RHO, DEF_ALPHA, bundle, bshare)
+base0 <- full_solve(0, SIGMA_B, SIGMA_W, DEF_RHO, DEF_ALPHA, bundle, bshare)
 ets_cov <- sum(bundle$z[bundle$tau == 1])      # coverage budget to match
 cat(sprintf("Horse-race: %d emitters, matching ETS coverage = %.4g (of Z0=%.4g)\n",
             length(em), ets_cov, sum(base0$z[em])))
@@ -42,7 +42,7 @@ select_to_coverage <- function(val, target) {
 }
 solve_set <- function(tau) {
   bj <- bundle; bj$tau <- as.integer(tau)
-  d  <- dec1(full_solve(PZ, DEF_SIGMA, DEF_RHO, DEF_ALPHA, bj, bshare), base0, em)
+  d  <- dec1(full_solve(PZ, SIGMA_B, SIGMA_W, DEF_RHO, DEF_ALPHA, bj, bshare), base0, em)
   c(n_targeted = sum(bj$tau), d[c("total", "technique", "scale", "composition")])
 }
 
@@ -71,8 +71,8 @@ res$pct_gain_captured <- 100 * (res$dlogZ - ets_d) / (cen_d - ets_d)
 res <- res[order(res$dlogZ), ]
 
 write.csv(res, file.path(output_dir, "cf_horserace.csv"), row.names = FALSE)
-cat(sprintf("\n[A] Wrote cf_horserace.csv to %s  (p_z=%d, sigma=%.2f, rho=%.2f, alpha=%.0f)\n",
-            output_dir, PZ, DEF_SIGMA, DEF_RHO, DEF_ALPHA))
+cat(sprintf("\n[A] Wrote cf_horserace.csv to %s  (p_z=%d, sigma_B=%.2f, sigma_W=%.2f, rho=%.2f, alpha=%.0f)\n",
+            output_dir, PZ, SIGMA_B, SIGMA_W, DEF_RHO, DEF_ALPHA))
 print(res, row.names = FALSE, digits = 4)
 
 # ===========================================================================

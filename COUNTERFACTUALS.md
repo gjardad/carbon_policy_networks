@@ -1,5 +1,18 @@
 # Counterfactual Exercises
 
+> **⚠️ STATUS (2026-06): the model below is partly superseded.** The solver now implements
+> **(1)** a **nested CES** — within-sector substitution across suppliers at $\sigma_W$, between
+> sectors+labor at $\sigma_B$ — replacing the single $\sigma$ used throughout this note; and
+> **(2)** **incomplete pass-through as a global constant-elasticity rule** $p_i=mc_i^{\rho_i}$
+> (full marginal cost, not just the carbon wedge), replacing the wedge-only $p_i=mc_i^{\text{non-carbon}}+\rho\,mrc_i$
+> described in §1/§3. The headline calibration is now a **single baseline cell**
+> $(\sigma_B,\sigma_W,\alpha,\rho)=(0.1,\,2.5,\,2,\,0.7)$, not a $\sigma$ sweep (robustness sweeps
+> available via `FULL_GRID` in `analysis/cf_common.R`). **The authoritative model spec is now
+> `analysis/phase5_model_solver.R` and `paper/thesis/sections/{model.tex,quantitative.tex}` (§5.1–5.2).**
+> The decomposition machinery (LMDI path-integral, `COMPUTATIONAL.md`) is unchanged. Sections below that
+> describe a single $\sigma$, full-pass-through baseline, or the old $\sigma/\rho/\alpha$ grids are stale;
+> read them for intent, not current values.
+
 This file specifies the counterfactual exercises the quantitative section of the paper
 (`sections/quantitative.tex`, formerly the "application" section) will run. It defines, for
 each exercise, the baseline, what is held fixed, what varies, the structural parameters
