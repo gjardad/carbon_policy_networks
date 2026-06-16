@@ -2,40 +2,37 @@
 # analysis/phase3_emission_cost_share.R
 #
 # PURPOSE
-#   How large is the carbon-cost wedge, defined EXACTLY as in the quantitative
-#   exercise? The carbon bill enters the denominator (total cost is post-tax):
+#   The carbon-cost wedge, defined EXACTLY as in the quantitative exercise --
+#   carbon bill in the denominator (post-tax share, bounded in (0,1)):
 #
-#       s_i = p_z * z_i / ( total_cost_i + p_z * z_i )  =  (p_z e_i)/(1 + p_z e_i)
+#       s_{i,t} = p_z z / (total_cost + p_z z) = (p_z e)/(1 + p_z e),
 #
-#   where e_i = z_i / total_cost_i is the model's baseline emission intensity
-#   (model_assembly.R) and the cost base is built the SAME way as the model:
-#       total_cost = IC (NBB code 60/61, INCLUDES imports) + wages (code 62),
-#       fallback (60/61 missing) = domestic input cost + total imports + wages.
-#   So inputs = domestic + imported intermediates, plus labor, plus the carbon
-#   bill p_z*z. s_i is the share of firm i's post-tax marginal cost that is
-#   carbon -- bounded in (0,1) -- and its level says where the reallocation
-#   channel can bite.
+#   cost base built like model_assembly.R: total_cost = IC (NBB 60/61, INCLUDES
+#   imports) + wages (62), fallback domestic+imports+wages. e = z/total_cost.
+#   Emissions z from allocation_glo_balanced (the model's allocation).
 #
-#   Emissions z from allocation_glo_balanced (the model's allocation), split:
-#     s1 = ETS observed only (source == "ets");  s2 = ETS + GLO-imputed (all).
+#   We summarise the cross-sectional dispersion of the wedge, net of year:
+#   let d_{i,t} = log s_{i,t} - mean_t(log s) be the YEAR-DEMEANED log share
+#   (demeaned within the sample being plotted). Then
+#     - SECTOR histogram: one point per NACE4d = within-sector mean of d_{i,t}.
+#     - FIRM histogram  : one point per firm   = within-firm, across-year mean of d_{i,t}.
 #
-#   Two figures, each overlaying both samples:
-#     (1) FIRM level: density of s_i across firm-years (log10, %).
-#     (2) SECTOR level: per-(NACE 4-digit, year) MEAN of s_i, then LOG-demeaned
-#         by year (log deviation from the year's geometric cross-sector mean).
+#   TWO SAMPLES x TWO PRICES => 8 distributions:
+#     samples: "ets"  = EU ETS firms only  (emissions z = ETS-observed, source=="ets")
+#              "full" = everyone           (all emitters, z = ETS + GLO-imputed)
+#     prices : p_z in {80, 250} EUR/tCO2
+#   Laid out as 4 PNGs (sector|firm x price), each overlaying ETS vs full.
 #
 # INPUT  {nbb}/processed/{annual_accounts_selected_sample, firm_year_domestic_input_cost,
 #        firm_year_total_imports, firm_year_belgian_euets, deployment_panel}.RData
 #        {nbb}/processed/allocation_glo_balanced/alloc_YYYY.RData  (vat, scope1, source)
-# OUTPUT {output_dir}/figures/emission_cost_share_{firm,sector}.png
+# OUTPUT {output_dir}/figures/emission_cost_share_{sector,firm}_p{80,250}.png
 #        {output_dir}/emission_cost_share_summary.csv
-#
-# Price override:  Rscript phase3_emission_cost_share.R 80
 # RUNS ON: local 1 (downsample) or RMD (full)
 ###############################################################################
 
 rm(list = ls())
-suppressPackageStartupMessages({ library(dplyr); library(tidyr) })
+suppressPackageStartupMessages({ library(dplyr) })
 
 # ---- Paths ----
 .path_candidates <- c(
@@ -48,19 +45,17 @@ source(file.path(project_root, "utils", "sector_conventions.R"))   # make_nace4d
 fig_dir <- file.path(output_dir, "figures"); dir.create(fig_dir, showWarnings = FALSE, recursive = TRUE)
 rm(.path_candidates, .p)
 
-# ---- Config ----
-.args <- commandArgs(trailingOnly = TRUE)
-PRICE <- if (length(.args) >= 1 && .args[1] != "") as.numeric(.args[1]) else 80  # EUR/tCO2 (paper benchmark p_z)
-MIN_N <- 5                                          # min firms per (sector, year) for a sector average
+PRICES <- c(80, 250)        # EUR/tCO2 (paper benchmark + high counterfactual)
+MIN_N  <- 5                 # min firm-years per sector to report a sector mean
 ALLOC_DIR <- file.path(proc_data, "allocation_glo_balanced")
-cat(sprintf("== emission_cost_share ==  price = %.0f EUR/tCO2 (carbon in denominator)\n", PRICE))
+cat("== emission_cost_share ==  year-demeaned log share; prices", paste(PRICES, collapse="/"), "\n")
 
-# ---- Load shared firm-characteristic tables once ----
-load(file.path(proc_data, "annual_accounts_selected_sample.RData"))   # df_annual_accounts_selected_sample: v_0060_61, v_0001023
-load(file.path(proc_data, "firm_year_domestic_input_cost.RData"))     # firm_year_domestic_input_cost: input_cost
-load(file.path(proc_data, "firm_year_total_imports.RData"))           # firm_year_total_imports: total_imports
-load(file.path(proc_data, "firm_year_belgian_euets.RData"))           # firm_year_belgian_euets: wage_bill, nace5d
-load(file.path(proc_data, "deployment_panel.RData"))                  # deployment_panel: nace5d
+# ---- Cost base (model_assembly.R:41-64): IC 60/61 + wages; fallback dom+imp+wages ----
+load(file.path(proc_data, "annual_accounts_selected_sample.RData"))
+load(file.path(proc_data, "firm_year_domestic_input_cost.RData"))
+load(file.path(proc_data, "firm_year_total_imports.RData"))
+load(file.path(proc_data, "firm_year_belgian_euets.RData"))
+load(file.path(proc_data, "deployment_panel.RData"))
 
 aa  <- df_annual_accounts_selected_sample %>%
   transmute(vat = vat_ano, year, ic = as.numeric(v_0060_61), wage_aa = as.numeric(v_0001023))
@@ -77,7 +72,6 @@ nace <- bind_rows(
 rm(df_annual_accounts_selected_sample, firm_year_domestic_input_cost,
    firm_year_total_imports, firm_year_belgian_euets, deployment_panel)
 
-# Cost base (model_assembly.R:41-64): IC 60/61 + wages; fallback domestic+imports+wages.
 cost_base_tab <- aa %>%
   full_join(dom, by = c("vat","year")) %>% full_join(imp, by = c("vat","year")) %>%
   full_join(wge, by = c("vat","year")) %>%
@@ -86,76 +80,58 @@ cost_base_tab <- aa %>%
          total_cost = ifelse(use_ic, ic + wage, dom + imp + wage)) %>%
   filter(total_cost > 0) %>% select(vat, year, total_cost, use_ic)
 
-# ---- Emissions per (vat, year): z_all (s2) and z_ets (s1) from the model's allocation ----
-alloc_files <- sort(list.files(ALLOC_DIR, pattern = "^alloc_\\d+\\.RData$", full.names = TRUE))
-if (length(alloc_files) == 0L) stop("no alloc_*.RData in ", ALLOC_DIR)
+# ---- Emissions per (vat, year): z_all (full) and z_ets (ETS only) ----
 zL <- list()
-for (f in alloc_files) {
-  load(f)  # year_firms: vat, scope1, source (+ year)
-  yf <- year_firms
+for (f in sort(list.files(ALLOC_DIR, pattern = "^alloc_\\d+\\.RData$", full.names = TRUE))) {
+  load(f); yf <- year_firms
   if (!"year" %in% names(yf)) yf$year <- as.integer(sub(".*alloc_(\\d+)\\.RData$", "\\1", f))
-  zL[[length(zL) + 1L]] <- yf %>% filter(scope1 > 0) %>%
-    group_by(vat, year) %>%
+  zL[[length(zL)+1L]] <- yf %>% filter(scope1 > 0) %>% group_by(vat, year) %>%
     summarise(z_all = sum(scope1), z_ets = sum(scope1[source == "ets"]), .groups = "drop")
 }
-z <- bind_rows(zL)
-
-# ---- Join, compute the post-tax carbon-cost share s_i = p_z z / (cost + p_z z) ----
-dat <- z %>% inner_join(cost_base_tab, by = c("vat","year")) %>% inner_join(nace, by = c("vat","year"))
+dat <- bind_rows(zL) %>% inner_join(cost_base_tab, by = c("vat","year")) %>%
+  inner_join(nace, by = c("vat","year"))
 cat(sprintf("  %d emitter firm-years with a model cost base over %s (%.0f%% use IC 60/61)\n",
             nrow(dat), paste(range(dat$year), collapse = "-"), 100*mean(dat$use_ic)))
 
-# per-sample firm-level share (only firms with positive emissions in that sample)
-mk_firm <- function(zz) {
-  d <- dat %>% filter({{ zz }} > 0) %>%
-    mutate(share = PRICE * {{ zz }} / (total_cost + PRICE * {{ zz }}), share_pct = 100 * share)
-  d
+# year-demeaned log share -> within-sector mean (per sector) and within-firm mean (per firm)
+stats_for <- function(zcol, price) {
+  d <- dat[dat[[zcol]] > 0, c("vat","year","nace4d","total_cost",zcol)]
+  s  <- price * d[[zcol]] / (d$total_cost + price * d[[zcol]])
+  d$lsd <- ave(log(s), d$year, FUN = function(v) v - mean(v))   # year-demeaned log share
+  sec  <- aggregate(lsd ~ nace4d, d, mean); secN <- table(d$nace4d)
+  sec  <- sec[secN[as.character(sec$nace4d)] >= MIN_N, ]
+  frm  <- aggregate(lsd ~ vat, d, mean)
+  list(sector = sec$lsd, firm = frm$lsd, n_fy = nrow(d), n_sec = nrow(sec), n_frm = nrow(frm))
 }
-firms_s1 <- mk_firm(z_ets); firms_s2 <- mk_firm(z_all)
 
-mk_sec <- function(fm) fm %>%
-  group_by(nace4d, year) %>% summarise(n = n(), share_pct = mean(share_pct), .groups = "drop") %>%
-  filter(n >= MIN_N) %>% group_by(year) %>% mutate(ldm = log(share_pct) - mean(log(share_pct))) %>% ungroup()
-sec_s1 <- mk_sec(firms_s1); sec_s2 <- mk_sec(firms_s2)
-
-summ <- function(fm, sc, sec) {
-  q <- quantile(fm$share_pct, c(.10,.50,.90,.99), na.rm = TRUE)
-  cat(sprintf("[%s] %d emitter firm-years; %d (NACE4d,year) cells | firm share p50=%.2f%% p90=%.2f%% p99=%.2f%% | >5%%: %.1f%%\n",
-              toupper(sc), nrow(fm), nrow(sec), q["50%"], q["90%"], q["99%"], 100*mean(fm$share_pct > 5)))
-  data.frame(scenario = sc, price = PRICE, years = paste(range(fm$year), collapse = "-"),
-             n_emit = nrow(fm), n_sectoryears = nrow(sec),
-             firm_p50 = q["50%"], firm_p90 = q["90%"], firm_p99 = q["99%"], gt5 = 100*mean(fm$share_pct > 5))
+col_ets <- "firebrick"; col_full <- "grey20"
+plot_pair <- function(a, b, xlab, file) {  # a = ETS, b = full (each a numeric vector)
+  da <- density(a); db <- density(b)
+  png(file.path(fig_dir, file), width = 6.5, height = 4.2, units = "in", res = 150)
+  op <- par(mar = c(4.4, 4.2, 1, 1))
+  plot(db, main = "", xlim = range(c(da$x, db$x)), ylim = c(0, max(c(da$y, db$y))),
+       col = col_full, lwd = 2, xlab = xlab, ylab = "Density")
+  lines(da, col = col_ets, lwd = 2, lty = 2); abline(v = 0, col = "grey60", lty = 3)
+  legend("topright", c("EU ETS only", "Everyone"), col = c(col_ets, col_full),
+         lwd = 2, lty = c(2, 1), bty = "n"); par(op); dev.off()
 }
-write.csv(rbind(summ(firms_s1, "s1", sec_s1), summ(firms_s2, "s2", sec_s2)),
-          file.path(output_dir, "emission_cost_share_summary.csv"), row.names = FALSE)
 
-col_s1 <- "firebrick"; col_s2 <- "grey20"
-
-# ---- (1) FIRM-LEVEL density (log10 %), both samples ----
-png(file.path(fig_dir, "emission_cost_share_firm.png"), width = 6.5, height = 4.2, units = "in", res = 150)
-op <- par(mar = c(4.4, 4.2, 1, 1))
-d1 <- density(log10(firms_s1$share_pct)); d2 <- density(log10(firms_s2$share_pct))
-xr <- range(c(d1$x, d2$x)); yr <- c(0, max(c(d1$y, d2$y)))
-plot(d2, main = "", xlim = xr, ylim = yr, col = col_s2, lwd = 2, axes = FALSE,
-     xlab = "Carbon cost as % of (post-tax) total input cost (log scale)", ylab = "Density")
-lines(d1, col = col_s1, lwd = 2, lty = 2)
-at <- seq(floor(xr[1]), ceiling(xr[2])); axis(1, at = at, labels = sprintf("%g%%", 10^at)); axis(2)
-abline(v = log10(c(1, 5)), col = "grey60", lty = 3)
-legend("topright", c("ETS observed (s1)", "ETS + imputed (s2)"), col = c(col_s1, col_s2),
-       lwd = 2, lty = c(2, 1), bty = "n")
-par(op); dev.off()
-
-# ---- (2) SECTOR-LEVEL log-demeaned density, both samples ----
-png(file.path(fig_dir, "emission_cost_share_sector.png"), width = 6.5, height = 4.2, units = "in", res = 150)
-op <- par(mar = c(4.4, 4.2, 1, 1))
-d1 <- density(sec_s1$ldm); d2 <- density(sec_s2$ldm)
-xr <- range(c(d1$x, d2$x)); yr <- c(0, max(c(d1$y, d2$y)))
-plot(d2, main = "", xlim = xr, ylim = yr, col = col_s2, lwd = 2,
-     xlab = "Sector-mean carbon-cost share: log deviation from year mean", ylab = "Density")
-lines(d1, col = col_s1, lwd = 2, lty = 2)
-abline(v = 0, col = "grey60", lty = 3)
-legend("topright", c("ETS observed (s1)", "ETS + imputed (s2)"), col = c(col_s1, col_s2),
-       lwd = 2, lty = c(2, 1), bty = "n")
-par(op); dev.off()
-
-cat("Done. Figures + summary in", output_dir, "\n")
+rows <- list()
+for (price in PRICES) {
+  ets  <- stats_for("z_ets", price); full <- stats_for("z_all", price)
+  plot_pair(ets$sector, full$sector,
+            sprintf("Within-sector mean year-demeaned log carbon-cost share (p_z=%d)", price),
+            sprintf("emission_cost_share_sector_p%d.png", price))
+  plot_pair(ets$firm, full$firm,
+            sprintf("Within-firm mean year-demeaned log carbon-cost share (p_z=%d)", price),
+            sprintf("emission_cost_share_firm_p%d.png", price))
+  for (nm in c("ets","full")) { o <- get(nm); for (lv in c("sector","firm")) {
+    v <- o[[lv]]; q <- quantile(v, c(.10,.50,.90), na.rm = TRUE)
+    rows[[length(rows)+1L]] <- data.frame(price = price, sample = nm, level = lv,
+      n = length(v), p10 = q[1], p50 = q[2], p90 = q[3], sd = sd(v))
+  }}
+  cat(sprintf("  p_z=%d : ETS %d sectors / %d firms ; full %d sectors / %d firms (from %d / %d firm-years)\n",
+              price, ets$n_sec, ets$n_frm, full$n_sec, full$n_frm, ets$n_fy, full$n_fy))
+}
+write.csv(do.call(rbind, rows), file.path(output_dir, "emission_cost_share_summary.csv"), row.names = FALSE)
+cat("Done. 4 figures (8 distributions) + summary in", output_dir, "\n")
