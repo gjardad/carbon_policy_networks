@@ -120,18 +120,30 @@ build_nest <- function(bundle, level = c("nace4d", "nace2d")) {
   out
 }
 
-# ---- Abatement block: closed form (alpha > 1) ------------------------------ (UNCHANGED)
-# minimize over kappa>=0 of:  kappa + tau p_z ebar (1-kappa)^alpha
-# FOC (interior): tau p_z ebar alpha (1-kappa)^{alpha-1} = 1
-#   => 1-kappa = (tau p_z ebar alpha)^{1/(1-alpha)}   [<=1 iff tau p_z ebar alpha >= 1]
-# Corner kappa=0 when tau p_z ebar alpha < 1 (carbon bill too small to abate).
+# ---- Abatement block: QUADRATIC abatement cost (model.tex eq:cost min) ------
+# minimize over kappa in [0,1] of:  tau p_z (1-kappa)^alpha ebar + (1/2) kappa^2
+# FOC (eq:global abatement foc):  kappa = tau p_z alpha ebar (1-kappa)^{alpha-1}.
+# The cost g(kappa)=kappa^2/2 is convex with g'(0)=0, so ANY positive carbon price
+# induces a smooth interior response (no threshold) -- unlike a linear cost, which
+# only triggers abatement once tau p_z ebar alpha >= 1. kappa=0 iff tau*ebar=0.
+# Solved per firm by Newton on F(kappa)=kappa - drive*(1-kappa)^{alpha-1}=0
+# (drive = tau p_z alpha ebar); for alpha=2 the initial guess drive/(1+drive) is exact.
 abatement_block <- function(p_z, tau, alpha, ebar) {
   stopifnot(alpha > 1)
-  drive <- tau * p_z * ebar * alpha          # >=1 => interior
-  one_minus_k <- ifelse(drive >= 1, drive^(1 / (1 - alpha)), 1)  # in (0,1]
-  kappa <- 1 - one_minus_k
-  e <- ebar * one_minus_k^alpha              # = ebar at corner; falls when interior
-  list(kappa = kappa, e = e)
+  drive <- tau * p_z * alpha * ebar
+  k <- numeric(length(ebar)); act <- drive > 0
+  if (any(act)) {
+    d <- drive[act]; kk <- d / (1 + d)                 # exact for alpha=2; good start otherwise
+    for (it in 1:200) {
+      omk <- pmax(1 - kk, 1e-12)
+      step <- (kk - d * omk^(alpha - 1)) / (1 + d * (alpha - 1) * omk^(alpha - 2))
+      kk <- pmin(pmax(kk - step, 0), 1 - 1e-12)
+      if (max(abs(step)) < 1e-13) break
+    }
+    k[act] <- kk
+  }
+  e <- ebar * (1 - k)^alpha
+  list(kappa = k, e = e)
 }
 
 # ---- Anderson-accelerated fixed point: solve x = G(x) ----------------------- (UNCHANGED)
@@ -175,7 +187,7 @@ solve_prices <- function(p_z, sigma_B, sigma_W, rho, alpha, bundle,
   nest <- bundle$nest
   tau <- bundle$tau; ebar <- bundle$e_bar; n <- length(bundle$gamma)
   ab <- abatement_block(p_z, tau, alpha, ebar)
-  a_term <- ab$kappa + tau * p_z * ab$e             # FULL carbon bill (no rho discount here)
+  a_term <- 0.5 * ab$kappa^2 + tau * p_z * ab$e     # abatement-inclusive carbon cost (eq:global price)
 
   Gmap <- function(p) (.nest_cost(p, nest, sigma_B, sigma_W)$c_input + a_term)^rho
 
