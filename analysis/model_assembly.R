@@ -15,6 +15,9 @@ assemble_bundle <- function(yr, scope, proc, out) {
   load(file.path(proc, "deployment_panel.RData"))
   load(file.path(proc, "deflator_nace4d_2005base.RData"))
   load(file.path(proc, "allocation_glo_balanced", sprintf("alloc_%d.RData", yr)))  # year_firms (vat,scope1)
+  load(file.path(proc, "annual_accounts_selected_sample.RData"))   # richer: v_0060_61 (IC 60/61), v_0001023 (wages 62)
+  load(file.path(proc, "firm_year_domestic_input_cost.RData"))     # fallback: domestic input cost
+  load(file.path(proc, "firm_year_total_imports.RData"))           # fallback: total imports
 
   message("  [assemble] data loaded; filtering B2B for year ", yr, " ...")
   aa <- df_annual_accounts_selected_sample_key_variables
@@ -35,19 +38,32 @@ assemble_bundle <- function(yr, scope, proc, out) {
   n <- length(subset_vat); idx <- setNames(seq_len(n), subset_vat)
   message(sprintf("  [assemble] subset = %d firms; building cost base + Omega ...", n))
 
-  # Total cost = FULL B2B purchases + labor (no carbon, closed economy)
-  # (group only over subset buyers, not the whole economy)
-  full_inputs <- b2b %>% filter(vat_buyer %in% subset_vat) %>%
-    group_by(vat_buyer) %>% summarise(inputs = sum(corr_sales), .groups = "drop")
-  message("  [assemble] input costs aggregated; assembling Omega ...")
-  wages_aa  <- aa %>% filter(year == yr, !is.na(wage_bill)) %>% select(vat, wage_bill)
+  # Cost base = intermediate consumption (NBB code 60/61, INCLUDES imports) + labor
+  # (code 62 = remuneration = wage_bill). Verified on the data: value_added = 70/74 - 60/61
+  # (corr 1.000) and 60/61 includes imports (corr with domestic+imports = 0.91). This is
+  # the model's "inputs + labor" measured completely (B2B alone omits imports/non-B2B inputs
+  # and inflates emission intensity). Conceptually total cost also carries the carbon bill
+  # z*p_z, which is zero at the p_z=0 calibration point.
+  #   Primary : total_cost = v_0060_61 (60/61) + v_0001023 (62)
+  #   Fallback (60/61 missing): domestic input cost + total imports + remuneration
+  aa_full <- df_annual_accounts_selected_sample %>% filter(year == yr) %>%
+    transmute(vat = vat_ano, ic = as.numeric(v_0060_61), wage_aa = as.numeric(v_0001023))
+  dom_in <- firm_year_domestic_input_cost %>% filter(year == yr) %>% select(vat, dom = input_cost)
+  imp_in <- firm_year_total_imports
+  if ("vat_ano" %in% names(imp_in)) imp_in <- rename(imp_in, vat = vat_ano)
+  imp_in <- imp_in %>% filter(year == yr) %>% select(vat, imp = total_imports)
   wages_ets <- firm_year_belgian_euets %>% filter(year == yr, !is.na(wage_bill)) %>%
-    select(vat, wage_bill_ets = wage_bill)
+    select(vat, wage_ets = wage_bill)
   ftab <- tibble(vat = subset_vat) %>%
-    left_join(full_inputs, by = c("vat" = "vat_buyer")) %>% mutate(inputs = coalesce(inputs, 0)) %>%
-    left_join(wages_aa, by = "vat") %>% left_join(wages_ets, by = "vat") %>%
-    mutate(wage_bill = coalesce(wage_bill, wage_bill_ets, 0), total_cost = inputs + wage_bill)
+    left_join(aa_full, by = "vat") %>% left_join(dom_in, by = "vat") %>%
+    left_join(imp_in, by = "vat") %>% left_join(wages_ets, by = "vat") %>%
+    mutate(wage = coalesce(wage_aa, wage_ets, 0),
+           dom = coalesce(dom, 0), imp = coalesce(imp, 0),
+           use_ic = !is.na(ic) & ic > 0,
+           total_cost = ifelse(use_ic, ic + wage, dom + imp + wage))
   total_cost <- setNames(ftab$total_cost, ftab$vat); total_cost[total_cost <= 0] <- NA_real_
+  message(sprintf("  [assemble] cost base: %d use 60/61, %d use domestic+imports fallback, %d missing/zero; assembling Omega ...",
+                  sum(ftab$use_ic), sum(!ftab$use_ic & ftab$total_cost > 0, na.rm = TRUE), sum(is.na(total_cost))))
 
   # Omega on within-subset edges (no-carbon cost base)
   b2b_sub <- b2b %>% filter(vat_supplier %in% subset_vat, vat_buyer %in% subset_vat)
