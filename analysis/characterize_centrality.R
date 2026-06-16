@@ -109,18 +109,19 @@ if (ok_gg) {
     scale_color_manual(values = c("Industrial" = "#D6604D", "Non-industrial" = "#4393C3"),
                        name = NULL) +
     scale_size_continuous(guide = "none") +
-    labs(x = "Technique (own abatement), d log Z",
-         y = "Composition (network reallocation), d log Z",
-         title = "Firm centrality: abatement and reallocation") +
-    theme_minimal(base_size = 12)
+    labs(x = "Abatement", y = "Reallocation") +          # no title; detail lives in the table note
+    theme_minimal(base_size = 16) +
+    theme(axis.title = element_text(size = 22), axis.text = element_text(size = 16),
+          legend.text = element_text(size = 16), legend.position = "bottom")
   ggsave(fig_path, p, width = 6.5, height = 5, dpi = 150)
 } else {
   png(fig_path, width = 6.5, height = 5, units = "in", res = 150)
+  par(cex.lab = 1.6, cex.axis = 1.3)
   plot(cf$technique, cf$composition, cex = 0.4 + 3 * cf$z / max(cf$z, na.rm = TRUE),
        col = ifelse(cf$industrial, "#D6604D", "#4393C3"),
-       xlab = "Technique (own abatement)", ylab = "Composition (network reallocation)",
-       main = "Firm centrality: abatement and reallocation")
-  legend("bottomleft", c("Industrial", "Non-industrial"), pch = 1, col = c("#D6604D", "#4393C3"))
+       xlab = "Abatement", ylab = "Reallocation")
+  legend("bottomleft", c("Industrial", "Non-industrial"), pch = 1,
+         col = c("#D6604D", "#4393C3"), cex = 1.3)
   dev.off()
 }
 
