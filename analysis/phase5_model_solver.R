@@ -52,7 +52,10 @@ load_bundle <- function(year = 2019) {
 build_nest <- function(bundle, level = c("nace4d", "nace2d")) {
   Om <- as(bundle$Omega, "CsparseMatrix"); n <- nrow(Om)
   level <- match.arg(level)
-  nace  <- bundle[[level]]; if (is.null(nace)) nace <- bundle$nace2d
+  nace  <- bundle[[level]]
+  if (is.null(nace)) stop(sprintf(
+    "build_nest: bundle has no '%s' field. The cached model_inputs_*.RData predates it -- delete the cache (or let cf_common/phase6 re-assemble) so the bundle is rebuilt with %s.",
+    level, level))
   isna  <- is.na(nace)
   sec   <- as.character(nace); sec[isna] <- paste0("__NA__", which(isna))   # NA -> singletons
   lev   <- unique(sec); grp <- match(sec, lev); G <- length(lev)

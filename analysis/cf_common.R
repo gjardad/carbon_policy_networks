@@ -47,8 +47,10 @@ FULL_GRID  <- FALSE                    # FALSE: single baseline cell. TRUE: swee
 bundle_file <- file.path(output_dir, sprintf("model_inputs_%d_%s.RData", YEAR, SCOPE))
 if (file.exists(bundle_file)) {
   cat("Loading cached bundle:", basename(bundle_file), "\n"); load(bundle_file)
-} else {
-  cat("Assembling bundle (first run; cached for reuse) ...\n")
+}
+# (re)assemble if absent OR if the cache predates the inner-nest NACE field (stale cache)
+if (!exists("bundle") || is.null(bundle[[NEST_LEVEL]])) {
+  cat("Assembling bundle (first run, or cache lacks ", NEST_LEVEL, ") ...\n", sep = "")
   bundle <- assemble_bundle(YEAR, SCOPE, proc_data, out_data); save(bundle, file = bundle_file)
 }
 bundle <- build_nest(bundle, NEST_LEVEL)   # nested-CES precompute (not persisted in the cache)

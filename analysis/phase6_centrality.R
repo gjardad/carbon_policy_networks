@@ -33,8 +33,10 @@ CANDIDATE_N <- 1000                                  # rank the top-N emitters a
 bundle_file <- file.path(output_dir, sprintf("model_inputs_%d_%s.RData", YEAR, SCOPE))
 if (file.exists(bundle_file)) {
   cat("Loading cached bundle:", basename(bundle_file), "\n"); load(bundle_file)
-} else {
-  cat("Assembling bundle (first run; cached for reuse) ...\n")
+}
+# (re)assemble if absent OR if the cache predates nace4d (stale cache -> silent 2d fallback)
+if (!exists("bundle") || is.null(bundle$nace4d)) {
+  cat("Assembling bundle (first run, or cache lacks nace4d) ...\n")
   bundle <- assemble_bundle(YEAR, SCOPE, proc_data, out_data); save(bundle, file = bundle_file)
 }
 bundle <- build_nest(bundle, "nace4d")  # nested-CES precompute (inner nest = narrow sector)
