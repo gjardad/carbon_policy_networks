@@ -101,37 +101,49 @@ stats_for <- function(zcol, price) {
   sec  <- aggregate(lsd ~ nace4d, d, mean); secN <- table(d$nace4d)
   sec  <- sec[secN[as.character(sec$nace4d)] >= MIN_N, ]
   frm  <- aggregate(lsd ~ vat, d, mean)
-  list(sector = sec$lsd, firm = frm$lsd, n_fy = nrow(d), n_sec = nrow(sec), n_frm = nrow(frm))
+  list(sector = sec$lsd, firm = frm$lsd, share_pct = 100 * s,
+       n_fy = nrow(d), n_sec = nrow(sec), n_frm = nrow(frm))
 }
 
 col_ets <- "firebrick"; col_full <- "grey20"
+# Large fonts for axis titles (cex.lab) and tick labels (cex.axis); no plot title.
 plot_pair <- function(a, b, xlab, file) {  # a = ETS, b = full (each a numeric vector)
   da <- density(a); db <- density(b)
-  png(file.path(fig_dir, file), width = 6.5, height = 4.2, units = "in", res = 150)
-  op <- par(mar = c(4.4, 4.2, 1, 1))
+  png(file.path(fig_dir, file), width = 6.6, height = 4.6, units = "in", res = 150)
+  op <- par(mar = c(5.2, 5.2, 0.6, 0.8), mgp = c(3.2, 1.0, 0),
+            cex.lab = 1.8, cex.axis = 1.6)
   plot(db, main = "", xlim = range(c(da$x, db$x)), ylim = c(0, max(c(da$y, db$y))),
-       col = col_full, lwd = 2, xlab = xlab, ylab = "Density")
-  lines(da, col = col_ets, lwd = 2, lty = 2); abline(v = 0, col = "grey60", lty = 3)
+       col = col_full, lwd = 2.5, xlab = xlab, ylab = "Density")
+  lines(da, col = col_ets, lwd = 2.5, lty = 2); abline(v = 0, col = "grey60", lty = 3)
   legend("topright", c("EU ETS only", "Everyone"), col = c(col_ets, col_full),
-         lwd = 2, lty = c(2, 1), bty = "n"); par(op); dev.off()
+         lwd = 2.5, lty = c(2, 1), bty = "n", cex = 1.4); par(op); dev.off()
 }
 
-rows <- list()
+# level (raw share %) summary -- answers "are emissions a HIGH share of input costs?"
+lvl_rows <- list()
+disp_rows <- list()
 for (price in PRICES) {
   ets  <- stats_for("z_ets", price); full <- stats_for("z_all", price)
-  plot_pair(ets$sector, full$sector,
-            sprintf("Within-sector mean year-demeaned log carbon-cost share (p_z=%d)", price),
+  plot_pair(ets$sector, full$sector, "Year-demeaned log carbon-cost share",
             sprintf("emission_cost_share_sector_p%d.png", price))
-  plot_pair(ets$firm, full$firm,
-            sprintf("Within-firm mean year-demeaned log carbon-cost share (p_z=%d)", price),
+  plot_pair(ets$firm, full$firm, "Year-demeaned log carbon-cost share",
             sprintf("emission_cost_share_firm_p%d.png", price))
-  for (nm in c("ets","full")) { o <- get(nm); for (lv in c("sector","firm")) {
-    v <- o[[lv]]; q <- quantile(v, c(.10,.50,.90), na.rm = TRUE)
-    rows[[length(rows)+1L]] <- data.frame(price = price, sample = nm, level = lv,
-      n = length(v), p10 = q[1], p50 = q[2], p90 = q[3], sd = sd(v))
-  }}
+  for (nm in c("ets","full")) {
+    o <- get(nm)
+    ql <- quantile(o$share_pct, c(.50,.90,.99), na.rm = TRUE)
+    lvl_rows[[length(lvl_rows)+1L]] <- data.frame(price = price, sample = nm,
+      n_firmyears = length(o$share_pct), share_p50 = ql[1], share_p90 = ql[2],
+      share_p99 = ql[3], pct_gt5 = 100*mean(o$share_pct > 5), pct_gt20 = 100*mean(o$share_pct > 20))
+    for (lv in c("sector","firm")) {
+      v <- o[[lv]]; q <- quantile(v, c(.10,.50,.90), na.rm = TRUE)
+      disp_rows[[length(disp_rows)+1L]] <- data.frame(price = price, sample = nm, level = lv,
+        n = length(v), p10 = q[1], p50 = q[2], p90 = q[3], sd = sd(v))
+    }
+  }
   cat(sprintf("  p_z=%d : ETS %d sectors / %d firms ; full %d sectors / %d firms (from %d / %d firm-years)\n",
               price, ets$n_sec, ets$n_frm, full$n_sec, full$n_frm, ets$n_fy, full$n_fy))
 }
-write.csv(do.call(rbind, rows), file.path(output_dir, "emission_cost_share_summary.csv"), row.names = FALSE)
-cat("Done. 4 figures (8 distributions) + summary in", output_dir, "\n")
+write.csv(do.call(rbind, disp_rows), file.path(output_dir, "emission_cost_share_summary.csv"), row.names = FALSE)
+write.csv(do.call(rbind, lvl_rows),  file.path(output_dir, "emission_cost_share_levels.csv"),  row.names = FALSE)
+cat("== raw share LEVELS (%, answers 'is it a high share?') ==\n"); print(do.call(rbind, lvl_rows), row.names = FALSE)
+cat("Done. 4 figures (8 distributions) + summary + levels in", output_dir, "\n")
