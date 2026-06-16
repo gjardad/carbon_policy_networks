@@ -31,32 +31,36 @@ eps <- 1e-12
 # ============================ 1. DESCRIPTIVES ==============================
 K <- max(1L, round(0.10 * nrow(cf)))             # top decile by centrality
 cf$central <- rank(-cf$cen, ties.method = "first") <= K
-grp <- function(v, g) mean(v[g], na.rm = TRUE)
-vars <- list(
-  "Emission intensity $e_i$"        = cf$e_bar,
-  "Direct emissions $z_i$"          = cf$z,
-  "Log size $\\log x_i$"            = log(pmax(cf$size, eps)),
-  "Domar weight $\\lambda_i$"       = cf$domar,
-  "\\# suppliers (in-degree)"       = cf$in_deg,
-  "\\# customers (out-degree)"      = cf$out_deg,
-  "Upstream EI $(\\Omega E)_i$"     = cf$up1,
-  "Network-adj. EI $(\\Psi E)_i$"   = cf$psi_e,
-  "Share industrial"                = as.numeric(cf$industrial),
-  "Share ETS-regulated"             = as.numeric(cf$ets == 1))
+# Each row: label, value vector, and a scale exponent s. The table entry is
+# value/10^s shown to two decimals, with the label carrying "(x 10^s)" when s!=0.
+# Direct emissions are physical scope-1 tonnes, recovered as e_bar * total_cost
+# (since e_bar = scope1/total_cost), not the model's normalized baseline flow.
+specs <- list(
+  list(l = "Emission intensity $e_i$",      v = cf$e_bar,                s = -2),
+  list(l = "Direct emissions $z_i$",        v = cf$e_bar * cf$total_cost, s =  4),
+  list(l = "Log size $\\log x_i$",          v = log(pmax(cf$size, eps)), s =  0),
+  list(l = "Domar weight $\\lambda_i$",     v = cf$domar,                s = -4),
+  list(l = "\\# suppliers (in-degree)",     v = cf$in_deg,               s =  0),
+  list(l = "\\# customers (out-degree)",    v = cf$out_deg,              s =  0),
+  list(l = "Upstream EI $(\\Omega E)_i$",   v = cf$up1,                  s = -4),
+  list(l = "Network-adj. EI $(\\Psi E)_i$", v = cf$psi_e,                s = -2),
+  list(l = "Share industrial",              v = as.numeric(cf$industrial), s = 0),
+  list(l = "Share ETS-regulated",           v = as.numeric(cf$ets == 1),   s = 0))
 desc <- data.frame(
-  variable = names(vars),
-  central  = sapply(vars, grp, g = cf$central),
-  rest     = sapply(vars, grp, g = !cf$central), row.names = NULL)
+  variable = sapply(specs, `[[`, "l"),
+  central  = sapply(specs, function(sp) mean(sp$v[cf$central],  na.rm = TRUE)),
+  rest     = sapply(specs, function(sp) mean(sp$v[!cf$central], na.rm = TRUE)), row.names = NULL)
 desc$ratio <- desc$central / desc$rest
-
+fmt_row <- function(i) {
+  sp <- specs[[i]]; lab <- if (sp$s != 0) sprintf("%s ($\\times 10^{%d}$)", sp$l, sp$s) else sp$l
+  sprintf("%s & %.2f & %.2f & %.2f \\\\", lab,
+          desc$central[i] / 10^sp$s, desc$rest[i] / 10^sp$s, desc$ratio[i])
+}
 descr_tex <- c(
-  "\\begin{tabular}{lrrr}", "\\toprule",
+  "\\begin{tabular}{lccc}", "\\toprule",      # columns 2-4 centred
   sprintf("Variable & Central (top %d\\%%) & Rest & Ratio \\\\", round(100 * K / nrow(cf))),
   "\\midrule",
-  sprintf("%s & %s & %s & %s \\\\", desc$variable,
-          formatC(desc$central, format = "g", digits = 3),
-          formatC(desc$rest,    format = "g", digits = 3),
-          ifelse(is.finite(desc$ratio), formatC(desc$ratio, format = "f", digits = 1), "--")),
+  sapply(seq_along(specs), fmt_row),
   "\\bottomrule", "\\end{tabular}")
 writeLines(descr_tex, file.path(output_dir, "tables", "centrality_descriptives.tex"))
 
@@ -107,7 +111,7 @@ if (ok_gg) {
     scale_size_continuous(guide = "none") +
     labs(x = "Technique (own abatement), d log Z",
          y = "Composition (network reallocation), d log Z",
-         title = "Two kinds of central firm") +
+         title = "Firm centrality: abatement and reallocation") +
     theme_minimal(base_size = 12)
   ggsave(fig_path, p, width = 6.5, height = 5, dpi = 150)
 } else {
@@ -115,7 +119,7 @@ if (ok_gg) {
   plot(cf$technique, cf$composition, cex = 0.4 + 3 * cf$z / max(cf$z, na.rm = TRUE),
        col = ifelse(cf$industrial, "#D6604D", "#4393C3"),
        xlab = "Technique (own abatement)", ylab = "Composition (network reallocation)",
-       main = "Two kinds of central firm")
+       main = "Firm centrality: abatement and reallocation")
   legend("bottomleft", c("Industrial", "Non-industrial"), pch = 1, col = c("#D6604D", "#4393C3"))
   dev.off()
 }
