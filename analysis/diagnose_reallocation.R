@@ -50,17 +50,17 @@ attribute <- function(bdl, ebar = bdl$e_bar) {
   emk  <- which(bdl$e_bar > 0)
   grid <- sort(unique(c(seq(0, PZ, by = PATH_STEP), PZ)))
   sols <- lapply(grid, function(pz) full_solve(pz, SB, SW, RHO, ALPHA, bdl, bshare))
-  Zof <- function(s) sum(s$z[emk]); Yof <- function(s) sum(s$x)
-  tech <- 0; quant_i <- numeric(length(emk))
+  Zof <- function(s) sum(s$z[emk])
+  tech <- 0; scl <- 0; quant_i <- numeric(length(emk))
   for (k in seq_len(length(grid) - 1L)) {
     s0 <- sols[[k]]; s1 <- sols[[k + 1L]]
     w  <- logmean(s1$z[emk], s0$z[emk]) / logmean(Zof(s1), Zof(s0))
     tech    <- tech + sum(w * (log(s1$e[emk]) - log(s0$e[emk])))
     quant_i <- quant_i + w * (log(s1$x[emk]) - log(s0$x[emk]))
+    scl     <- scl + sum(w) * (log(s1$realY) - log(s0$realY))     # (Sum w) Dlog real output (GK scale)
   }
-  scale <- log(Yof(sols[[length(grid)]])) - log(Yof(sols[[1L]]))
   list(em = emk, dlogZ = log(Zof(sols[[length(grid)]])) - log(Zof(sols[[1L]])),
-       technique = tech, scale = scale, composition = sum(quant_i) - scale, quant_i = quant_i)
+       technique = tech, scale = scl, composition = sum(quant_i) - scl, quant_i = quant_i)
 }
 
 cat("\nSolving baseline path 0 ->", PZ, "(actual ETS targeting) ...\n")

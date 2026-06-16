@@ -293,7 +293,7 @@ dec1 <- function(sj, s0, em) {
   w  <- logmean(sj$z[em], s0$z[em]) / logmean(Z1, Z0)
   tech  <- sum(w * (log(sj$e[em]) - log(s0$e[em])))
   quant <- sum(w * (log(sj$x[em]) - log(s0$x[em])))
-  scale <- log(sum(sj$x)) - log(sum(s0$x))
+  scale <- sum(w) * (log(sj$realY) - log(s0$realY))   # (Sum w) * Dlog REAL output (GDP); GK scale ~0
   c(total = log(Z1) - log(Z0), technique = tech, scale = scale, composition = quant - scale)
 }
 
@@ -317,24 +317,28 @@ decompose_path <- function(p_target, sigma_B, sigma_W, rho, alpha, bundle, b, K 
 
 # Solve ONCE along a fine grid (starting at 0) and report the CUMULATIVE path
 # decomposition at every node, so all price columns come from a single path of
-# solves. Three-way Grossman-Krueger split d log Z = scale + technique +
-# composition; realGDP (welfare) reported as a diagnostic (~0).
+# solves. Three-way Grossman-Krueger split d log Z = scale + technique + composition,
+# with scale = REAL output (GDP) change, which is ~0 to first order (Hulten): emissions
+# fall by reorganizing/abating, not by shrinking the economy. Each step splits the
+# B&F reallocation channel Sum_i w_i dlog x_i = (Sum_i w_i) dlog Y_real + Sum_i w_i dlog(x_i/Y_real),
+# integrated along the path with current LMDI weights (the Sum_i w_i factor is exact, not dropped).
+# realGDP = raw Dlog real output, reported as a welfare diagnostic alongside.
 decompose_path_grid <- function(grid, sigma_B, sigma_W, rho, alpha, bundle, b) {
   stopifnot(grid[1] == 0, all(diff(grid) > 0))
   if (is.null(bundle$nest)) bundle <- build_nest(bundle)
   em   <- which(bundle$e_bar > 0)
   sols <- lapply(grid, function(pz) full_solve(pz, sigma_B, sigma_W, rho, alpha, bundle, b))
-  Zof <- function(s) sum(s$z[em]); Yof <- function(s) sum(s$x)
-  Z0 <- Zof(sols[[1L]]); Y0 <- Yof(sols[[1L]]); RY0 <- sols[[1L]]$realY
-  tech <- 0; quant <- 0; rows <- vector("list", length(grid) - 1L)
+  Zof <- function(s) sum(s$z[em])
+  Z0 <- Zof(sols[[1L]]); RY0 <- sols[[1L]]$realY
+  tech <- 0; quant <- 0; scl <- 0; rows <- vector("list", length(grid) - 1L)
   for (k in seq_len(length(grid) - 1L)) {
     s0 <- sols[[k]]; s1 <- sols[[k + 1L]]
     w  <- logmean(s1$z[em], s0$z[em]) / logmean(Zof(s1), Zof(s0))
-    tech  <- tech  + sum(w * (log(s1$e[em]) - log(s0$e[em])))
-    quant <- quant + sum(w * (log(s1$x[em]) - log(s0$x[em])))
-    scale <- log(Yof(s1)) - log(Y0)
+    tech  <- tech  + sum(w * (log(s1$e[em]) - log(s0$e[em])))                 # technique (integral)
+    quant <- quant + sum(w * (log(s1$x[em]) - log(s0$x[em])))                 # B&F reallocation (integral)
+    scl   <- scl   + sum(w) * (log(s1$realY) - log(s0$realY))                 # (Sum w) Dlog real output (integral)
     rows[[k]] <- data.frame(p_z = grid[k + 1L], dlogZ = log(Zof(s1)) - log(Z0),
-                            scale = scale, technique = tech, composition = quant - scale,
+                            scale = scl, technique = tech, composition = quant - scl,
                             realGDP = log(s1$realY) - log(RY0),
                             mean_price = mean(s1$p))
   }
