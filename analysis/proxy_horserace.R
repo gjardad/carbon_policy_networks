@@ -40,10 +40,18 @@ select_to_coverage <- function(val, target) {
   k <- which(cumsum(bundle$z[ord]) >= target)[1]; if (is.na(k)) k <- length(ord)
   ord[seq_len(k)]
 }
+# Path-integral decomposition (NOT two-point): the rules target large sets (a big
+# shock), so the technique/scale/composition split is path-dependent and must be
+# integrated along 0->PZ, consistent with the counterfactual tables. (The headline
+# pct_gain_captured uses only the TOTAL, which is endpoint-exact either way; this
+# makes the channel columns consistent too.)
 solve_set <- function(tau) {
   bj <- bundle; bj$tau <- as.integer(tau)
-  d  <- dec1(full_solve(PZ, SIGMA_B, SIGMA_W, DEF_RHO, DEF_ALPHA, bj, bshare), base0, em)
-  c(n_targeted = sum(bj$tau), d[c("total", "technique", "scale", "composition")])
+  grid <- sort(unique(c(seq(0, PZ, by = PATH_STEP), PZ)))
+  dec  <- decompose_path_grid(grid, SIGMA_B, SIGMA_W, DEF_RHO, DEF_ALPHA, bj, bshare)
+  r <- dec[dec$p_z == PZ, ]
+  c(n_targeted = sum(bj$tau), total = r$dlogZ, technique = r$technique,
+    scale = r$scale, composition = r$composition)
 }
 
 # observable ranking rules a regulator could actually implement
