@@ -107,17 +107,17 @@ panel_c <- ggplot(plot_data, aes(x = ratio)) +
     color = "white"
   ) +
   geom_vline(xintercept = med_cov, linetype = "dashed",
-             color = "#E0405E", linewidth = 0.7) +
+             color = "#E0405E", linewidth = 0.9) +
   annotate("text",
            x = med_cov - 2, y = Inf, vjust = 1.5,
            label = paste0("Median: ", round(med_cov), "%"),
-           color = "#E0405E", size = 4, hjust = 1, fontface = "bold") +
+           color = "#E0405E", size = 6, hjust = 1, fontface = "bold") +
   geom_vline(xintercept = agg_cov, linetype = "dashed",
-             color = "#2166AC", linewidth = 0.7) +
+             color = "#2166AC", linewidth = 0.9) +
   annotate("text",
-           x = agg_cov - 2, y = Inf, vjust = 3.5,
+           x = agg_cov - 2, y = Inf, vjust = 3.3,
            label = paste0("Aggregate: ", round(agg_cov), "%"),
-           color = "#2166AC", size = 4, hjust = 1, fontface = "bold") +
+           color = "#2166AC", size = 6, hjust = 1, fontface = "bold") +
   scale_x_continuous(
     breaks = seq(0, 100, 10),
     labels = function(x) paste0(x, "%"),
@@ -128,18 +128,18 @@ panel_c <- ggplot(plot_data, aes(x = ratio)) +
     x = "Share of sector emissions covered by the EU ETS",
     y = "Number of sector-country pairs"
   ) +
-  theme_minimal(base_size = 13) +
+  theme_minimal(base_size = 16) +
   theme(
     panel.grid.minor = element_blank(),
     panel.grid.major.x = element_blank(),
-    axis.title.x = element_text(size = 13, margin = margin(t = 10)),
-    axis.title.y = element_text(size = 13, margin = margin(r = 10)),
-    axis.text = element_text(size = 11)
+    axis.title.x = element_text(size = 19, margin = margin(t = 10)),
+    axis.title.y = element_text(size = 17, margin = margin(r = 10)),
+    axis.text = element_text(size = 15)
   )
 
 ggsave(file.path(output_dir, "panel_c_within_sector_coverage.pdf"),
-       panel_c, width = 7, height = 4.5)
+       panel_c, width = 7.5, height = 5.5)
 ggsave(file.path(output_dir, "panel_c_within_sector_coverage.png"),
-       panel_c, width = 7, height = 4.5, dpi = 300)
+       panel_c, width = 7.5, height = 5.5, dpi = 300)
 
 cat("\nFigure saved to:", output_dir, "\n")

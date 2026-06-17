@@ -51,14 +51,14 @@ activity_shares <- inforce %>%
       "lime"               ~ "Lime",
       "ceramics"           ~ "Ceramics & bricks",
       "pulp_paper"         ~ "Pulp & paper",
-      "chemicals"          ~ "Chemicals &\npetrochemicals",
-      "aluminum"           ~ "Aluminum &\nnon-ferrous metals",
+      "chemicals"          ~ "Chemicals & petrochemicals",
+      "aluminum"           ~ "Aluminum & non-ferrous metals",
       "ammonia"            ~ "Ammonia",
       "food_bev"           ~ "Food & beverages",
       "other_industry"     ~ "Other industry",
       "aviation"           ~ "Aviation",
       "maritime"           ~ "Maritime",
-      "buildings"          ~ "Buildings &\nheating fuels",
+      "buildings"          ~ "Buildings & heating fuels",
       "road_transport"     ~ "Road transport",
       "waste_incineration" ~ "Waste incineration"
     ),
@@ -84,19 +84,19 @@ panel_a <- ggplot(activity_shares, aes(x = share, y = activity_label)) +
     x = "Share of CPP instruments",
     y = NULL
   ) +
-  theme_minimal(base_size = 13) +
+  theme_minimal(base_size = 16) +
   theme(
     panel.grid.major.y = element_blank(),
     panel.grid.major.x = element_blank(),
     panel.grid.minor = element_blank(),
-    axis.title.x = element_text(size = 15, margin = margin(t = 15)),
-    axis.text.y = element_text(size = 13),
-    axis.text.x = element_text(size = 13)
+    axis.title.x = element_text(size = 19, margin = margin(t = 12)),
+    axis.text.y = element_text(size = 16, lineheight = 0.85),
+    axis.text.x = element_text(size = 16)
   )
 
 ggsave(file.path(output_dir, "panel_a_sector_targeting.pdf"),
-       panel_a, width = 7, height = 6)
+       panel_a, width = 7.5, height = 5.5)
 ggsave(file.path(output_dir, "panel_a_sector_targeting.png"),
-       panel_a, width = 7, height = 6, dpi = 300)
+       panel_a, width = 7.5, height = 5.5, dpi = 300)
 
 cat("\nFigure saved to:", output_dir, "\n")
