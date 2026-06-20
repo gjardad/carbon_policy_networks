@@ -566,9 +566,9 @@ For every cell (and every step of the §6 decomposition), report:
       Default `SCOPE="ets_neighbors"` (clean + tractable on full B2B); `"full"` for the whole panel.
       Smoke-tested locally end-to-end (completes, writes CSVs; correctly reports target-unreachable on
       the downsampled data).
-- [ ] **Run it on RMD** with full B2B: `git pull`, then `Rscript analysis/run_counterfactuals_rmd.R`
-      (paths auto-resolve). On clean data the calibration brackets → real $\alpha$ and counterfactual
-      numbers; the ē outliers / negative-final-demand artifacts disappear.
+- [x] **Run it on RMD** with full B2B — DONE: `quantitative.tex` reports full-data results (from
+      `output_rmd/`); the calibration brackets, and the ē outliers / negative-final-demand artifacts of
+      the downsampled subset are gone.
 - [ ] **(Deferred refactor) single network builder.** phase2/phase3/phase4 each construct the
       cost-share matrix separately. Consolidate into one builder that saves the **raw** expenditure
       matrix + cost components (inputs/wages/carbon split), so every consumer re-normalizes from the same
@@ -611,24 +611,24 @@ For every cell (and every step of the §6 decomposition), report:
 - [x] **Prices DONE (provisional):** 2005 base **€18**, 2022 terminal **€80**, period-average **≈€19**;
       counterfactual grid **€100/€150/€200/€250** (SCC ≈€170–175 as reference). One finalization step
       below.
-- [ ] **Replace the milestone-estimated middle-year EUA averages** (2010–2016) with audited calendar-year
-      means from the Ember/Sandbag CSV or ICAP export, then re-confirm the ≈€19 period-average.
-- [ ] **(Optional) nested-CES on the reallocation side** — only to let different *input* nests carry
-      different $\sigma$ (materials vs. energy/services; Peter & Ruane caveat). **Not** needed for
-      $\alpha$/$\sigma$ separation — that is already built into the current model.
-- [ ] **§5b rank-preservation check** — Spearman correlation between first-order predicted reduction and
-      global realized reduction, by price level.
+- [x] **Replace the milestone-estimated middle-year EUA averages** (2010–2016) — OBSOLETE: $\alpha$ is now
+      calibrated from the literature (Martinsson et al.), not from matching Belgium's −24pp, and the
+      benchmark uses the realized €80 price; the ≈€19 period-average is no longer used.
+- [x] **(Optional) nested-CES on the reallocation side** — DONE: `quantitative.tex` §4.1 implements the
+      two-nest CES with separate within-sector ($\sigma_W$) and between-sector ($\sigma_B$) elasticities.
+- [x] **§5b rank-preservation check** — moved to [todo.md](todo.md) (Centrality and the global solution);
+      not yet in the paper. `quantitative.tex` currently computes centrality via the global solve.
 - [x] **Price grid DONE:** €80 (realized) → €100 → €150 → €200 (→ €250), round numbers with SCC as
       reference ([§3](#3-structural-parameters-plugged-in), price-levels table).
-- [ ] **Centrality characterization regression** — regress the centrality measure on
-      size/emissions/intensity/upstream-emissions/sector; needed before T2 is policy-relevant ([§4](#4-the-targeting-schemes)).
+- [x] **Centrality characterization regression** — DONE: `quantitative.tex` §4.3 ("Can a regulator
+      identify them from observables?", Table `centrality_regression`).
 - [x] **Coverage normalization** — DONE: T2 matched to T0 on **base-year emission coverage** ([§4](#4-the-targeting-schemes)).
 - [x] **Data scope** — DECIDED (see P4 above): full private-sector panel for the final runs so leakage
       to untargeted competitors is in the model; ETS+neighbors subset for development. *Scope limit to
       record:* the model is closed, so imports are dropped — no cross-border (import) leakage channel,
       only domestic reallocation.
-- [ ] **Price–wedge robustness** — handled by the $\rho$ sweep (the current model prices at $p_i=mc_i$,
-      so there are no markups to vary; markups would be a separate model extension).
+- [x] **Price–wedge robustness** — DONE: handled by the $\rho$ sweep (the current model prices at
+      $p_i=mc_i$, so there are no markups to vary; markups would be a separate model extension).
 
 ---
 
