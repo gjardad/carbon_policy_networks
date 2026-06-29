@@ -1,131 +1,69 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  CHAPTER 2 -- CARBON LEAKAGE WITHIN AND ACROSS COUNTRIES
-%%  ~10 minutes. Content drawn from the current paper.
+%%  ~10 minutes. 5 slides.  (numbers on slides 3 & 4 only)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%% TEMPLATE-STYLE OVERVIEW %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{frame}{Carbon leakage: the problem in one slide}
+%%%%%%%%%%%%%%%%%%%%% (1) OVERVIEW %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{frame}{Carbon leakage within and across countries}
 
     \begin{tcolorbox}[colback=red!4,colframe=red!50!black]
         \textbf{Question:} does the EU ETS push activity toward \emph{less-regulated} suppliers ---
-        \alertr{within} Belgium (to less carbon-exposed domestic firms) and \alertr{across} its
-        borders (to non-EU imports)?
+        \alertr{within} Belgium and \alertr{across} its borders?
     \end{tcolorbox}
 
     \begin{wideitemize}
-        \item[\alertoch{Data:}] firm-level Belgium --- near-universe \alertb{B2B network} $+$ firm$\times$product$\times$country \alertp{customs} $+$ \alertg{EUTL} emissions/allowances
-        \pause
-        \item[\alertb{Approach:}] continuous-treatment DiD; dose $=$ supplier's predetermined carbon-cost exposure $\omega$; shock $=$ the \alerto{2015 MSR}-driven EUA run-up; follow the buyers with the strongest incentive to switch
-        \pause
-        \item[\alertr{Result:}] carbon pricing \alertg{does} raise producer prices (more in exposed sectors) --- but sourcing \alertr{does not move}. \textbf{Three margins, three nulls.}
-        \pause
-        \item[\alertp{Why:}] the relative-price gap stays \alertr{below 1\%} even at full pass-through --- too small to repay switching
+        \item \textbf{\alertoch{Data:}} firm-level Belgium --- near-universe \alertb{B2B network} $+$ firm$\times$product$\times$country \alertp{customs} $+$ \alertg{EUTL} emissions/allowances
+        \item \textbf{\alertb{Approach:}} continuous-treatment DiD --- dose $=$ a supplier's predetermined \alerto{carbon-cost exposure}; shock $=$ the \alerto{2015 MSR}-driven EUA run-up
+        \item \textbf{\alertr{Result:}} carbon pricing \alertg{does} raise producer prices (more in exposed sectors) --- but sourcing \alertr{does not move}. \textbf{Three margins, three nulls.}
+        \item \textbf{\alertp{Why:}} the relative-price gap stays \alertr{tiny} even at full pass-through --- too small to repay switching
     \end{wideitemize}
 
 \end{frame}
 
-%%%%%%%%%%%%%%%%%%%%% SETTING & SHOCK %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{frame}{Setting: a common carbon price and an exogenous shock}
-
-    \begin{columns}
-    \begin{column}{0.54\textwidth}
-        \begin{figure}
-            \centering
-            \includegraphics[width=\linewidth]{figures/phase3_eua_price_timeseries.pdf}
-        \end{figure}
-    \end{column}
-    \begin{column}{0.46\textwidth}
-        \begin{wideitemize}
-            \item \alertb{EU ETS}: common European carbon price since 2005
-            \item \alerto{Market Stability Reserve} (Oct 2015): rules-based, withdraws surplus allowances
-            \begin{wideitemize}
-                \item[-] mechanical, \alertg{predetermined} --- not Belgian conditions
-            \end{wideitemize}
-            \item Drives EUA \alertr{\texteuro5--8 (2015) $\to$ \texteuro25 (2018) $\to$ \texteuro80+ (2022)}
-            \item[] \alertp{$\Rightarrow$} the post-2017 run-up is the quasi-experiment
-        \end{wideitemize}
-    \end{column}
-    \end{columns}
-
-    \vspace{0.2cm}
-    \footnotesize Treatment dose $\omega_j = \dfrac{\max(0,\ \text{emissions}_j - \text{free allowances}_j)\cdot \text{EUA}}{\text{total cost}_j}$, fixed at 2015--16.
-
-\end{frame}
-
-%%%%%%%%%%%%%%%%%%%%% PASS-THROUGH WORKS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%% (2) PASS-THROUGH (+ SETTING) %%%%%%%%%%%%%%%%%%%%%%%
 \begin{frame}{First: the policy \emph{does} bite on prices}
 
     \begin{columns}
-    \begin{column}{0.56\textwidth}
+    \begin{column}{0.55\textwidth}
         \begin{figure}
             \centering
             \includegraphics[width=\linewidth]{figures/phase4_ppi_eventstudy_omega_sh.pdf}
         \end{figure}
     \end{column}
-    \begin{column}{0.44\textwidth}
+    \begin{column}{0.45\textwidth}
         \begin{wideitemize}
-            \item Manufacturing PPI rises after a carbon shock and \alertg{stays elevated}
-            \item Concentrated in \alertb{shortage-exposed} sectors (allowances bought on the market), \alertr{not} gross emissions
-            \item[] Cross-sector DiD, per SD of exposure:
-            \begin{wideitemize}
-                \item[-] shortage $\omega^{sh}$: \alertg{$+0.012^{**}$} (to 2019)
-                \item[-] $\to$ \alertg{$+0.023^{***}$} (to 2022)
-                \item[-] gross emissions: \alertr{null}
-            \end{wideitemize}
+            \item \textbf{\alerto{Shock}}: the 2015 MSR drives EUA \alertr{\texteuro5 $\to$ \texteuro80+} --- mechanical, predetermined
+            \item \textbf{\alerto{Dose}}: supplier's pre-2017 exposure $\omega = \tfrac{\text{shortage}}{\text{total cost}}$
+            \item Manufacturing prices rise after 2017 and \alertg{stay elevated}
+            \item Concentrated in \alertb{shortage}-exposed sectors: \alertg{$+0.012^{**}\!\to\!+0.023^{***}$} per SD \\ {\footnotesize (gross emissions: \alertr{null})}
         \end{wideitemize}
     \end{column}
     \end{columns}
 
 \end{frame}
 
-%%%%%%%%%%%%%%%%%%%%% DOMESTIC NULL %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%% (3) DOMESTIC NULL (+ WHY) %%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{frame}{Margin 1 --- within Belgium: no reallocation}
 
     \begin{columns}
-    \begin{column}{0.56\textwidth}
+    \begin{column}{0.55\textwidth}
         \begin{figure}
             \centering
             \includegraphics[width=\linewidth]{figures/phase4_within_nace4d_descriptive_trajectory_2017_activeAtT.pdf}
         \end{figure}
     \end{column}
-    \begin{column}{0.44\textwidth}
+    \begin{column}{0.45\textwidth}
         \begin{wideitemize}
-            \item Within (buyer, NACE-4d): expenditure share on \alertb{most-} vs.\ \alertr{least-}exposed supplier
-            \item Shares move in \alertg{parallel} after 2017
-            \item[] DiD on post$\times$top:
-            \begin{wideitemize}
-                \item[-] naive: \alertr{$+0.0123^{**}$} (wrong sign!)
-                \item[-] $+$ age$\times$top FE: \alertg{$0.0031$}, n.s.
-            \end{wideitemize}
-            \item[] {\footnotesize $\div 4$ once mechanical attrition (top suppliers survive longer) is absorbed; not robust under HonestDiD from $\bar M=0.25$.}
+            \item Expenditure share on \alertb{most-} vs.\ \alertr{least-}exposed supplier moves in \alertg{parallel} after 2017
+            \item DiD on post$\times$top: \alertr{$+0.0123^{**}$} (wrong sign) $\to$ \alertg{$0.0031$ n.s.} once mechanical attrition is absorbed; not robust under HonestDiD
+            \item \textbf{\alertb{Why}}: even at full pass-through the relative-price gap is \alertr{$<1\%$} --- too small to act on
         \end{wideitemize}
     \end{column}
     \end{columns}
 
 \end{frame}
 
-%%%%%%%%%%%%%%%%%%%%% WHY NOTHING TO FIND %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{frame}{Why nothing to find: the incentive is tiny}
-
-    \begin{columns}
-    \begin{column}{0.56\textwidth}
-        \begin{figure}
-            \centering
-            \includegraphics[width=\linewidth]{figures/phase4_within_intensive_ces_elasticity_cdf.pdf}
-        \end{figure}
-    \end{column}
-    \begin{column}{0.44\textwidth}
-        \begin{wideitemize}
-            \item Map the $\Delta$EUA into a relative-price gap between most- and least-exposed supplier
-            \item Even at \alertb{full pass-through}, the median cell's gap is \alertr{well below 1\%}
-            \item[] \alertp{$\Rightarrow$} substitution elasticity $\sigma$ is unidentified --- the price barely moves, so there is nothing to substitute against
-        \end{wideitemize}
-    \end{column}
-    \end{columns}
-
-\end{frame}
-
-%%%%%%%%%%%%%%%%%%%%% INTERNATIONAL NULL %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%% (4) INTERNATIONAL NULL %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{frame}{Margin 2 --- across borders: Belgium $\neq$ France}
 
     \begin{columns}
@@ -151,7 +89,7 @@
 
 \end{frame}
 
-%%%%%%%%%%%%%%%%%%%%% TAKEAWAYS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%% (5) TAKEAWAYS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{frame}{Chapter 2 --- three margins, three nulls}
 
     \begin{tcolorbox}[colback=red!4,colframe=red!50!black]
@@ -160,14 +98,14 @@
 
     \begin{wideitemize}
         \item[\alertg{1.}] Pass-through is \alertg{real} and persistent --- more in shortage-exposed sectors
-        \item[\alertr{2.}] \alertr{No} within-NACE reallocation: wrong-signed, $\div 4$ and insignificant, not robust
-        \item[\alertr{3.}] \alertr{No} international reallocation: flat shares; Belgium two orders of magnitude below France
+        \item[\alertr{2.}] \alertr{No} within-NACE reallocation: wrong-signed, shrinks to insignificance, not robust
+        \item[\alertr{3.}] \alertr{No} international reallocation: flat shares, far below France
     \end{wideitemize}
 
     \vspace{0.2cm}
     \alertp{Mechanism}: the cost shock is small and pass-through partial $\Rightarrow$ the relative-price gap never clears the cost of switching suppliers.
 
-    \vspace{0.15cm}
+    \vspace{0.1cm}
     {\color{dgray}\small $\hookrightarrow$ Chapters 1--2 measure firms and test reallocation \emph{reduced-form};
     Chapter~3 builds the structural model that says \emph{when} reallocation should bind.}
 
